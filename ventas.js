@@ -1,5 +1,5 @@
 const express = require("express");
-const { llamarKame } = require("../kameClient");
+const { llamarKame } = require("./kameClient");
 
 const router = express.Router();
 
