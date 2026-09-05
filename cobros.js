@@ -1,6 +1,6 @@
 const express = require("express");
-const { llamarKame } = require("../kameClient");
-const db = require("../db");
+const { llamarKame } = require("./kameClient");
+const db = require("./db");
 
 const router = express.Router();
 
