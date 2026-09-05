@@ -2,11 +2,11 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 
-const { router: stockRouter, refrescarCacheStock } = require("./routes/stock");
-const { router: ventasRouter } = require("./routes/ventas");
-const { router: cobrosRouter } = require("./routes/cobros");
-const { router: clientesRouter } = require("./routes/clientes");
-const { router: productosRouter } = require("./routes/productos");
+const { router: stockRouter, refrescarCacheStock } = require("./stock");
+const { router: ventasRouter } = require("./ventas");
+const { router: cobrosRouter } = require("./cobros");
+const { router: clientesRouter } = require("./clientes");
+const { router: productosRouter } = require("./productos");
 
 const app = express();
 
