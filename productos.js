@@ -89,6 +89,12 @@ router.put("/:sku", async (req, res) => {
       usuario: process.env.KAME_USUARIO_SISTEMA,
     };
 
+    // KAME devuelve algunos campos como texto "S"/"N" al leer, pero
+    // espera booleano real al escribir. Los convertimos antes de reenviar.
+    if (typeof bodyActualizacion.UsaSeguimientoLotes === "string") {
+      bodyActualizacion.UsaSeguimientoLotes = bodyActualizacion.UsaSeguimientoLotes === "S";
+    }
+
     const registrosAuditoria = [];
 
     for (const [campoDashboard, valorNuevo] of Object.entries(cambios)) {
