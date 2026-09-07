@@ -1,3 +1,4 @@
+
 const express = require("express");
 const { llamarKame } = require("./kameClient");
 
@@ -40,9 +41,9 @@ router.get("/", async (req, res) => {
 
     const bloques = construirBloques(fechaDesde, fechaHasta, 31);
 
-    if (bloques.length > 24) {
+    if (bloques.length > 120) {
       return res.status(400).json({
-        error: "El rango pedido es muy amplio (más de ~2 años). Prueba con un rango más acotado.",
+        error: "El rango pedido es muy amplio (más de ~10 años). Prueba con un rango más acotado.",
       });
     }
 
