@@ -25,11 +25,14 @@ router.get("/", async (req, res) => {
     const marcados = db.prepare("SELECT numero_documento FROM facturas_revisadas").all();
     const setRevisados = new Set(marcados.map((m) => m.numero_documento));
 
-    if (Array.isArray(datos?.data)) {
-      datos.data = datos.data.map((doc) => ({
+    const filas = datos?.items ?? datos?.data;
+    if (Array.isArray(filas)) {
+      const filasConEstado = filas.map((doc) => ({
         ...doc,
-        revisado: setRevisados.has(String(doc.numero ?? doc.numeroDocumento)),
+        revisado: setRevisados.has(`${doc.Documento ?? ""}-${doc.FolioDocumento ?? doc.numero ?? ""}`),
       }));
+      if (Array.isArray(datos.items)) datos.items = filasConEstado;
+      else datos.data = filasConEstado;
     }
 
     res.json(datos);
