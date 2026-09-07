@@ -3,12 +3,15 @@ const { llamarKame } = require("./kameClient");
 
 const router = express.Router();
 
-// GET /api/ventas?fechaDesde=2026-01-01&fechaHasta=2026-01-31&page=1
+// GET /api/ventas?fechaDesde=2026-08-08&fechaHasta=2026-09-07&page=1
+// OJO: KAME exige que el rango entre fechaDesde y fechaHasta no supere 31 días.
 router.get("/", async (req, res) => {
   try {
+    const hastaDefault = new Date().toISOString().slice(0, 10);
+    const desdeDefault = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
     const {
-      fechaDesde = "2026-01-01",
-      fechaHasta = new Date().toISOString().slice(0, 10),
+      fechaDesde = desdeDefault,
+      fechaHasta = hastaDefault,
       page = 1,
       per_page = 100,
     } = req.query;
