@@ -9,10 +9,10 @@ const router = express.Router();
 // así evitamos que un bug o un dato mal armado pise configuración
 // del producto que el dashboard no debería gestionar.
 const CAMPOS_EDITABLES = {
-  nombre: "descripcion",
-  precioLista: "precioVentaNeto",
-  stockMin: "stockMin",
-  stockMax: "stockMax",
+  nombre: "Descripcion",
+  precioLista: "PrecioVentaNeto",
+  stockMin: "StockMin",
+  stockMax: "StockMax",
 };
 
 router.get("/:sku", async (req, res) => {
@@ -74,7 +74,7 @@ router.put("/:sku", async (req, res) => {
     const actual = await llamarKame(
       `/Maestro/getListArticulo?Sku=${encodeURIComponent(sku)}`
     );
-    const productoActual = Array.isArray(actual) ? actual[0] : actual?.data?.[0] ?? actual;
+    const productoActual = Array.isArray(actual) ? actual[0] : actual?.items?.[0] ?? actual?.data?.[0] ?? actual;
 
     if (!productoActual) {
       return res.status(404).json({ error: `No se encontró el producto ${sku} en KAME` });
@@ -87,7 +87,6 @@ router.put("/:sku", async (req, res) => {
     const bodyActualizacion = {
       ...productoActual,
       usuario: process.env.KAME_USUARIO_SISTEMA,
-      sku,
     };
 
     const registrosAuditoria = [];
