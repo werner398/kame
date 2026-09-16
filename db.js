@@ -42,6 +42,7 @@ db.exec(`
     proveedor TEXT NOT NULL,
     codigo_proveedor TEXT,
     precio REAL,
+    moneda TEXT NOT NULL DEFAULT 'CLP',
     cantidad_minima INTEGER,
     plazo_entrega TEXT,
     kg_m REAL,
@@ -50,5 +51,14 @@ db.exec(`
     fecha_actualizacion TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);
+
+// Migración: si la tabla proveedores_producto ya existía de antes (sin la
+// columna "moneda"), la agregamos ahora. Si ya existe, SQLite tira error
+// de "columna duplicada" — lo ignoramos a propósito.
+try {
+  db.exec("ALTER TABLE proveedores_producto ADD COLUMN moneda TEXT NOT NULL DEFAULT 'CLP'");
+} catch (error) {
+  // La columna ya existía — no hay nada que hacer.
+}
 
 module.exports = db;
