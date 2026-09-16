@@ -35,6 +35,20 @@ db.exec(`
     usuario TEXT NOT NULL,
     fecha TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS proveedores_producto (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sku TEXT NOT NULL,
+    proveedor TEXT NOT NULL,
+    codigo_proveedor TEXT,
+    precio REAL,
+    cantidad_minima INTEGER,
+    plazo_entrega TEXT,
+    kg_m REAL,
+    activo INTEGER NOT NULL DEFAULT 1,
+    usuario TEXT NOT NULL,
+    fecha_actualizacion TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 module.exports = db;
