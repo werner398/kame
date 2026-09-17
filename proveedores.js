@@ -44,12 +44,18 @@ router.put("/:sku/:id", (req, res) => {
     return res.status(400).json({ error: "Falta indicar qué usuario hace el cambio" });
   }
 
-  const fila = db
+  let fila = db
     .prepare("SELECT * FROM proveedores_producto WHERE id = ? AND sku = ?")
     .get(req.params.id, req.params.sku);
 
+  // Si no coincide exacto por sku+id, buscamos solo por id (que de todas
+  // formas es único) — evita falsos 404 por cualquier desajuste de formato.
   if (!fila) {
-    return res.status(404).json({ error: "No se encontró esa relación producto-proveedor" });
+    fila = db.prepare("SELECT * FROM proveedores_producto WHERE id = ?").get(req.params.id);
+  }
+
+  if (!fila) {
+    return res.status(404).json({ error: `No se encontró el proveedor con id ${req.params.id}` });
   }
 
   db.prepare(
