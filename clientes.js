@@ -1,4 +1,4 @@
-const express = require("express");
+  const express = require("express");
 const { llamarKame } = require("./kameClient");
 const db = require("./db");
 
@@ -8,6 +8,10 @@ const router = express.Router();
 // a partir de getCuentaxCobrar — KAME no tiene un endpoint de búsqueda
 // de clientes por nombre, así que reusamos esta data que ya trae ambos.
 // Solo encuentra clientes con al menos un documento en los últimos 2 años.
+//
+// OJO: en KAME el "Código Cliente" es literalmente el mismo RUT (la ficha
+// de cliente no trae un código separado) — así que esta búsqueda cubre
+// nombre, código y RUT a la vez, comparando contra ambos campos.
 let cacheClientes = { lista: null, actualizadoEn: null };
 
 async function obtenerListaClientes() {
@@ -38,18 +42,22 @@ async function obtenerListaClientes() {
   return cacheClientes.lista;
 }
 
-// GET /api/clientes/buscar?nombre=angelica
+// GET /api/clientes/buscar?nombre=angelica  (o un RUT/código parcial, ej: 10264643)
 // OJO: esta ruta va ANTES de "/:rut" para que Express no la confunda
 // con una búsqueda de ficha por RUT.
 router.get("/buscar", async (req, res) => {
   try {
     const q = (req.query.nombre || "").trim().toLowerCase();
     if (q.length < 2) {
-      return res.status(400).json({ error: "Escribe al menos 2 letras para buscar" });
+      return res.status(400).json({ error: "Escribe al menos 2 letras o números para buscar" });
     }
     const lista = await obtenerListaClientes();
     const coincidencias = lista
-      .filter((c) => c.nombre.toLowerCase().includes(q))
+      .filter(
+        (c) =>
+          c.nombre.toLowerCase().includes(q) ||
+          c.rut.toLowerCase().replace(/\./g, "").includes(q.replace(/\./g, ""))
+      )
       .slice(0, 20);
     res.json({ coincidencias });
   } catch (error) {
