@@ -35,6 +35,34 @@ router.get("/:sku/auditoria", (req, res) => {
   res.json(cambios);
 });
 
+// GET /api/productos/:sku/comentarios — lista los comentarios/notas
+// guardados para ese producto (registro propio, no vive en KAME).
+router.get("/:sku/comentarios", (req, res) => {
+  const comentarios = db
+    .prepare(
+      "SELECT id, usuario, comentario, fecha FROM comentarios_producto WHERE sku = ? ORDER BY fecha DESC"
+    )
+    .all(req.params.sku);
+  res.json(comentarios);
+});
+
+// POST /api/productos/:sku/comentarios — agrega una nota nueva al producto
+router.post("/:sku/comentarios", (req, res) => {
+  const { usuario, comentario } = req.body;
+
+  if (!usuario || !comentario) {
+    return res.status(400).json({ error: "Faltan usuario o comentario" });
+  }
+
+  const resultado = db
+    .prepare(
+      "INSERT INTO comentarios_producto (sku, usuario, comentario) VALUES (?, ?, ?)"
+    )
+    .run(req.params.sku, usuario, comentario);
+
+  res.json({ ok: true, id: resultado.lastInsertRowid });
+});
+
 // PUT /api/productos/:sku
 // Body esperado: { usuario, cambios: { nombre?, precioLista?, stockMin?, stockMax? } }
 router.put("/:sku", async (req, res) => {
@@ -48,8 +76,6 @@ router.put("/:sku", async (req, res) => {
     return res.status(400).json({ error: "No se enviaron cambios" });
   }
 
-  // Solo aceptamos las claves que definimos como editables. Cualquier
-  // otra cosa que venga en el body se ignora silenciosamente.
   const camposInvalidos = Object.keys(cambios).filter((k) => !CAMPOS_EDITABLES[k]);
   if (camposInvalidos.length > 0) {
     return res.status(400).json({
@@ -57,7 +83,6 @@ router.put("/:sku", async (req, res) => {
     });
   }
 
-  // Validaciones básicas antes de escribir a KAME
   if (cambios.precioLista !== undefined && Number(cambios.precioLista) <= 0) {
     return res.status(400).json({ error: "El precio de lista debe ser mayor a 0" });
   }
@@ -70,27 +95,21 @@ router.put("/:sku", async (req, res) => {
   }
 
   try {
-    // 1. Traemos el producto tal como está hoy en KAME
     const actual = await llamarKame(
       `/Maestro/getListArticulo?Sku=${encodeURIComponent(sku)}`
     );
-    const productoActual = Array.isArray(actual) ? actual[0] : actual?.items?.[0] ?? actual?.data?.[0] ?? actual;
+    const lista = Array.isArray(actual) ? actual : (actual?.items ?? actual?.data ?? []);
+    const productoActual = lista[0];
 
     if (!productoActual) {
       return res.status(404).json({ error: `No se encontró el producto ${sku} en KAME` });
     }
 
-    // 2. Armamos el body completo para updArticulo: partimos de TODO
-    // lo que ya tiene el producto, y solo pisamos los campos que
-    // el usuario efectivamente cambió. Así nunca borramos accidentalmente
-    // configuración que el dashboard no gestiona.
     const bodyActualizacion = {
       ...productoActual,
       usuario: process.env.KAME_USUARIO_SISTEMA,
     };
 
-    // KAME devuelve algunos campos como texto "S"/"N" al leer, pero
-    // espera booleano real al escribir. Los convertimos antes de reenviar.
     if (typeof bodyActualizacion.UsaSeguimientoLotes === "string") {
       bodyActualizacion.UsaSeguimientoLotes = bodyActualizacion.UsaSeguimientoLotes === "S";
     }
@@ -101,7 +120,7 @@ router.put("/:sku", async (req, res) => {
       const campoKame = CAMPOS_EDITABLES[campoDashboard];
       const valorAnterior = productoActual[campoKame];
 
-      if (String(valorAnterior) === String(valorNuevo)) continue; // sin cambio real
+      if (String(valorAnterior) === String(valorNuevo)) continue;
 
       bodyActualizacion[campoKame] = valorNuevo;
       registrosAuditoria.push({ campo: campoKame, valorAnterior, valorNuevo });
@@ -111,14 +130,11 @@ router.put("/:sku", async (req, res) => {
       return res.json({ ok: true, mensaje: "No había cambios reales que aplicar" });
     }
 
-    // 3. Escribimos a KAME
     await llamarKame(`/Inventario/updArticulo/${encodeURIComponent(sku)}`, {
       method: "PUT",
       body: JSON.stringify(bodyActualizacion),
     });
 
-    // 4. Auditoría en nuestra propia base — recién después de confirmar
-    // que KAME aceptó el cambio
     const insertar = db.prepare(
       "INSERT INTO auditoria_cambios (sku, campo, valor_anterior, valor_nuevo, usuario) VALUES (?, ?, ?, ?, ?)"
     );
