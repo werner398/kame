@@ -1,7 +1,8 @@
 // Base de datos PROPIA del dashboard. Nunca toca la base de KAME.
-// Guarda cosas que el ERP no maneja: comentarios de clientes,
-// el estado "revisado" de facturas vencidas, y el registro de auditoría
-// de cada cambio que este backend hace en KAME (producto/precio/etc).
+// Guarda cosas que el ERP no maneja: comentarios de clientes y de
+// productos, el estado "revisado" de facturas vencidas, el registro
+// de auditoría de cada cambio que este backend hace en KAME, y los
+// proveedores por producto (que KAME confirmó que no maneja).
 
 const Database = require("better-sqlite3");
 const path = require("path");
@@ -15,6 +16,14 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS comentarios_cliente (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     rut_cliente TEXT NOT NULL,
+    usuario TEXT NOT NULL,
+    comentario TEXT NOT NULL,
+    fecha TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS comentarios_producto (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sku TEXT NOT NULL,
     usuario TEXT NOT NULL,
     comentario TEXT NOT NULL,
     fecha TEXT NOT NULL DEFAULT (datetime('now'))
