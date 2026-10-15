@@ -110,8 +110,16 @@ router.put("/:sku", async (req, res) => {
       usuario: process.env.KAME_USUARIO_SISTEMA,
     };
 
-    if (typeof bodyActualizacion.UsaSeguimientoLotes === "string") {
-      bodyActualizacion.UsaSeguimientoLotes = bodyActualizacion.UsaSeguimientoLotes === "S";
+    // KAME devuelve varios campos como texto "S"/"N" al leer, pero exige
+    // booleano real al escribir (ya vimos UsaSeguimientoLotes y
+    // UsaMinimoRentabilidad fallar con el mismo error). En vez de ir
+    // agregando una condición por cada campo nuevo que vaya apareciendo,
+    // convertimos TODOS los campos que empiecen con "Usa" — es el patrón
+    // de nombres que usa KAME para estos flags booleanos.
+    for (const campo of Object.keys(bodyActualizacion)) {
+      if (campo.startsWith("Usa") && typeof bodyActualizacion[campo] === "string") {
+        bodyActualizacion[campo] = bodyActualizacion[campo] === "S";
+      }
     }
 
     const registrosAuditoria = [];
