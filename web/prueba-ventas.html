@@ -61,6 +61,7 @@
     </div>
     <div id="sesionActiva" class="fila" hidden>
       <span>Emitiendo como <b id="quien"></b></span>
+      <a id="lnkAdmin" href="admin-vendedores.html" target="_blank" hidden>Administrar claves de vendedores</a>
       <button id="btnSalir">Salir</button>
     </div>
     <div id="estadoConexion" class="chico" style="margin-top:6px"></div>
@@ -209,6 +210,7 @@ async function cargarVendedores(refrescar) {
 function pintarSesion() {
   $('formAcceso').hidden = !!sesion;
   $('sesionActiva').hidden = !sesion;
+  $('lnkAdmin').hidden = sesion?.rol !== 'admin';
   if (sesion) $('quien').textContent = sesion.vendedor + (sesion.rol === 'admin' ? ' (administrador)' : '');
   document.querySelectorAll('#btnVista, #btnHistorial').forEach((b) => (b.disabled = !sesion));
   $('btnEmitir').disabled = !sesion || !$('confirmo').checked;
