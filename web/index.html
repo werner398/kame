@@ -988,7 +988,7 @@ function vistaMovimiento(main) {
         <div class="field-line"><label>Bodega:</label><select id="mv-bodega"><option>TODAS</option>${BODEGAS_REALES.map(b => `<option>${b}</option>`).join('')}</select></div>
         <div class="field-line">
           <label style="min-width:auto">Fecha</label>
-          <label style="min-width:24px">De:</label><input type="date" id="mv-desde" value="${hace30(365)}">
+          <label style="min-width:24px">De:</label><input type="date" id="mv-desde" value="2026-01-01">
           <label style="min-width:16px">A:</label><input type="date" id="mv-hasta" value="${hoy()}">
           <button class="btn primary" id="mv-buscar">Buscar</button>
         </div>
@@ -2017,7 +2017,8 @@ async function buscarClienteUnificado(texto, cargarPorRut, idCoincidencias) {
   }
 }
 
-function hoy() { return new Date().toISOString().slice(0, 10); }
+// Fecha local (Chile), no UTC: después de las 21:00 toISOString ya daría mañana.
+function hoy() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function hace30(dias = 30) { return new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10); }
 
 // Los <input type="date"> muestran el formato según el idioma del navegador
