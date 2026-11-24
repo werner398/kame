@@ -74,6 +74,8 @@
   .num { text-align:right; white-space:nowrap; }
   .quitar { border:0; background:none; color:var(--gris); font-size:18px; cursor:pointer; }
   .quitar:hover { color:var(--err); }
+  .oc-link { cursor:pointer; color:var(--azul); font-weight:600; text-decoration:underline; text-underline-offset:2px; }
+  .oc-link:hover { color:var(--azul-osc); }
   .stock-bajo { color:var(--err); font-weight:600; }
   .totales { margin-left:auto; width:280px; margin-top:12px; }
   .totales div { display:flex; justify-content:space-between; padding:4px 0; }
@@ -851,6 +853,7 @@ function cuerpoDocumento(enviar) {
     pagos: doc.pagos.map((p) => ({ codigo: p.codigo, nombre: forma(p.codigo).nombre, credito: forma(p.codigo).credito, dias: p.dias, monto: p.monto })),
     diasVigencia: Number($('diasVigencia').value || 15),
     cotizacionOrigen: doc.tipo === 'pedido' ? doc.cotizacionOrigen : null,
+    nroOC: doc.nroOC, fechaOC: doc.fechaOC,
     referenciaOC: doc.nroOC ? `OC N° ${doc.nroOC}${doc.fechaOC ? ' del ' + doc.fechaOC.split('-').reverse().join('-') : ''}` : '',
     comentario: $('comentario').value.trim(),
     emitidoPor: sesion.vendedor,
@@ -1015,12 +1018,21 @@ $('btnHistorial').onclick = async () => {
     const tr = document.createElement('tr');
     [f.fecha?.slice(0, 16), f.tipo === 'pedido' ? 'Nota de venta' : 'Cotización', f.folio || '—', f.rzn_social || f.rut, f.vendedor, pesos(f.total), estados[f.estado] || f.estado]
       .forEach((v, i) => { const td = document.createElement('td'); td.textContent = v ?? ''; if (i === 5) td.className = 'num'; if (i === 4) td.className = 'ocultar-movil'; tr.appendChild(td); });
+    // Columna OC: el número (azul y con manito si hay archivo para ver)
     const tdOC = document.createElement('td');
-    (f.adjuntos || []).forEach((a) => {
-      const b = document.createElement('button'); b.className = 'enlace'; b.textContent = 'Ver OC'; b.title = a.nombre;
-      b.onclick = () => verAdjunto(f.id, a.id);
-      tdOC.appendChild(b);
-    });
+    const adj = f.adjuntos || [];
+    if (adj.length) {
+      adj.forEach((a, i) => {
+        const b = document.createElement('button'); b.className = 'enlace oc-link';
+        b.textContent = f.nro_oc ? (i ? ` (${i + 1})` : f.nro_oc) : (i ? ` (${i + 1})` : 'Ver OC');
+        b.title = 'Ver archivo: ' + a.nombre;
+        b.onclick = () => verAdjunto(f.id, a.id);
+        tdOC.appendChild(b);
+      });
+    } else {
+      tdOC.textContent = f.nro_oc || '—';
+      if (!f.nro_oc) tdOC.className = 'chico';
+    }
     tr.appendChild(tdOC);
     $('histFilas').appendChild(tr);
   });

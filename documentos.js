@@ -259,8 +259,8 @@ async function verificar(tipo, folio, totalEsperado) {
 
 const insertarRegistro = db.prepare(`
   INSERT INTO documentos_emitidos
-    (tipo, folio, vendedor, rut, rzn_social, total, estado, emitido_por, payload, respuesta, verificacion, error)
-  VALUES (@tipo, @folio, @vendedor, @rut, @rzn_social, @total, @estado, @emitido_por, @payload, @respuesta, @verificacion, @error)
+    (tipo, folio, vendedor, rut, rzn_social, total, estado, emitido_por, payload, respuesta, verificacion, error, nro_oc, fecha_oc)
+  VALUES (@tipo, @folio, @vendedor, @rut, @rzn_social, @total, @estado, @emitido_por, @payload, @respuesta, @verificacion, @error, @nro_oc, @fecha_oc)
 `);
 
 const json = (x) => (x === undefined ? null : JSON.stringify(x));
@@ -293,13 +293,21 @@ router.get("/formas-pago", async (req, res) => {
 
 // GET /api/documentos/historial — últimos documentos emitidos desde aquí
 router.get("/historial", exigirAcceso, (req, res) => {
-  const columnas = `id, tipo, folio, vendedor, rut, rzn_social, total, estado, emitido_por, error, fecha,
+  const columnas = `id, tipo, folio, vendedor, rut, rzn_social, total, estado, emitido_por, error, fecha, nro_oc, fecha_oc,
+    json_extract(payload, '$.Comentario') AS glosa,
     (SELECT json_group_array(json_object('id', a.id, 'nombre', a.nombre)) FROM adjuntos_documento a WHERE a.documento_id = documentos_emitidos.id) AS adjuntos`;
   const filas =
     req.acceso.rol === "vendedor"
       ? db.prepare(`SELECT ${columnas} FROM documentos_emitidos WHERE vendedor = ? ORDER BY id DESC LIMIT 50`).all(req.acceso.vendedor)
       : db.prepare(`SELECT ${columnas} FROM documentos_emitidos ORDER BY id DESC LIMIT 50`).all();
-  res.json({ items: filas.map((f) => ({ ...f, adjuntos: JSON.parse(f.adjuntos || "[]") })) });
+  res.json({
+    items: filas.map(({ glosa, ...f }) => ({
+      ...f,
+      // Documentos anteriores a guardar el N° de OC: se toma de la glosa ("OC N° 5214 del ...")
+      nro_oc: f.nro_oc || String(glosa || "").match(/OC N° ([^\s.]+)/)?.[1] || null,
+      adjuntos: JSON.parse(f.adjuntos || "[]"),
+    })),
+  });
 });
 
 // GET /api/documentos/:tipo/:folio — leer una cotización o nota de venta de KAME
@@ -358,6 +366,8 @@ router.post("/:tipo", exigirAcceso, async (req, res) => {
     total: payload.total,
     emitido_por: emitidoPor,
     payload: json(payload),
+    nro_oc: String(body.nroOC || "").trim().slice(0, 40) || null,
+    fecha_oc: String(body.fechaOC || "").trim().slice(0, 10) || null,
   };
 
   let respuesta;

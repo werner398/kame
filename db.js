@@ -119,6 +119,11 @@ db.exec(`
   );
 `);
 
+// Migración: N° y fecha de la OC del cliente en cada documento emitido.
+for (const columna of ["nro_oc TEXT", "fecha_oc TEXT"]) {
+  try { db.exec(`ALTER TABLE documentos_emitidos ADD COLUMN ${columna}`); } catch { /* ya existe */ }
+}
+
 // Migración: si la tabla proveedores_producto ya existía de antes (sin la
 // columna "moneda"), la agregamos ahora. Si ya existe, SQLite tira error
 // de "columna duplicada" — lo ignoramos a propósito.
