@@ -103,12 +103,19 @@ const FORMAS_PAGO_BASE = [
   { codigo: "1", nombre: "Contado", credito: false, dias: 0 },
   { codigo: "2", nombre: "Crédito", credito: true, dias: 30 },
 ];
+// En la interfaz de KAME se llaman "Condición de Venta".
 const RUTAS_FORMAS_PAGO = [
+  "/Maestro/getListCondicionVenta",
+  "/Maestro/getListCondicionesVenta",
+  "/Maestro/getCondicionVenta",
+  "/Maestro/getCondicionesVenta",
+  "/Maestro/getListCondicionDeVenta",
+  "/Maestro/getListCondicionPago",
   "/Maestro/getListFormaPago",
   "/Maestro/getFormaPago",
-  "/Maestro/getListCondicionPago",
-  "/Maestro/getListCondicionVenta",
   "/Maestro/getListFormasPago",
+  "/Ventas/getListCondicionVenta",
+  "/Documento/getListCondicionVenta",
 ];
 let cacheFormasPago = { datos: null, en: 0 };
 
@@ -126,15 +133,18 @@ async function listarFormasPago({ forzar = false } = {}) {
       intentos.push({ ruta, ok: true, filas: filas.length, muestra: JSON.stringify(filas[0] ?? crudo)?.slice(0, 400) });
       const leidas = filas
         .map((f) => {
-          const codigo = f.Codigo ?? f.codigo ?? f.Id ?? f.id ?? f.FormaPago ?? f.CodFormaPago ?? f.CodigoFormaPago;
-          const nombre = f.Descripcion ?? f.descripcion ?? f.Nombre ?? f.nombre ?? f.Glosa ?? f.FormaPago;
+          if (typeof f === "string") return { codigo: f, nombre: f, dias: 0, credito: /cr[eé]dito/i.test(f) && !/tarjeta/i.test(f) };
+          const codigo = f.Codigo ?? f.codigo ?? f.Id ?? f.id ?? f.ID ?? f.FormaPago ?? f.CodFormaPago ?? f.CodigoFormaPago
+            ?? f.CodCondicion ?? f.CodigoCondicion ?? f.IdCondicion ?? f.CondicionVenta ?? f.Condicion;
+          const nombre = f.Descripcion ?? f.descripcion ?? f.Nombre ?? f.nombre ?? f.Glosa ?? f.NombreCondicion
+            ?? f.CondicionVenta ?? f.Condicion ?? f.FormaPago;
           const dias = Number(f.Dias ?? f.dias ?? f.Plazo ?? f.DiasVencimiento ?? f.DiasPlazo ?? 0) || 0;
           return codigo != null && nombre ? { codigo: String(codigo), nombre: String(nombre), dias, credito: dias > 0 } : null;
         })
         .filter(Boolean);
       if (leidas.length) { formas = leidas; origen = ruta; break; }
     } catch (e) {
-      intentos.push({ ruta, ok: false, status: e.status });
+      intentos.push({ ruta, ok: false, status: e.status, detalle: JSON.stringify(e.detalle ?? "")?.slice(0, 200) });
     }
   }
   cacheFormasPago = {

@@ -360,7 +360,7 @@ $('rut').onchange = () => { $('clienteNombre').textContent = ''; };
 
 // ---- Formas de pago desde KAME ----
 async function cargarFormasPago() {
-  const r = await api('/api/documentos/formas-pago');
+  const r = await api('/api/documentos/formas-pago?refrescar=1');
   const formas = r.cuerpo?.formas || [{ codigo: '1', nombre: 'Contado', credito: false, dias: 0 }, { codigo: '2', nombre: 'Crédito', credito: true, dias: 30 }];
   $('formaPago').innerHTML = '';
   formas.forEach((f) => {
