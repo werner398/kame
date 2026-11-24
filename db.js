@@ -119,8 +119,8 @@ db.exec(`
   );
 `);
 
-// Migración: N° y fecha de la OC del cliente en cada documento emitido.
-for (const columna of ["nro_oc TEXT", "fecha_oc TEXT"]) {
+// Migración: N° y fecha de la OC del cliente, y cotización de origen (en notas de venta).
+for (const columna of ["nro_oc TEXT", "fecha_oc TEXT", "cotizacion_origen TEXT"]) {
   try { db.exec(`ALTER TABLE documentos_emitidos ADD COLUMN ${columna}`); } catch { /* ya existe */ }
 }
 

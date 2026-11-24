@@ -345,8 +345,18 @@
   <!-- ===== Historial ===== -->
   <section id="vistaHistorial" hidden>
     <h3 style="margin-top:0">Documentos emitidos</h3>
+    <div class="fila" style="margin-bottom:14px; align-items:center">
+      <div class="segmento" id="filtroTipo">
+        <button data-tipo="" class="on">Todos</button>
+        <button data-tipo="cotizacion">Cotizaciones</button>
+        <button data-tipo="pedido">Notas de venta</button>
+      </div>
+      <select id="filtroCliente" class="campo" style="width:auto; min-width:240px"><option value="">Todos los clientes</option></select>
+      <input id="filtroTexto" class="campo" style="width:240px" placeholder="Buscar folio, cliente u OC…">
+      <span id="filtroConteo" class="chico"></span>
+    </div>
     <table>
-      <thead><tr><th>Fecha</th><th>Tipo</th><th>Folio</th><th>Cliente</th><th class="ocultar-movil">Vendedor</th><th class="num">Total</th><th>Estado</th><th>OC</th></tr></thead>
+      <thead><tr><th>Fecha</th><th>Tipo</th><th>Folio</th><th>Cliente</th><th>Origen</th><th class="ocultar-movil">Vendedor</th><th class="num">Total</th><th>Estado</th><th>OC</th></tr></thead>
       <tbody id="histFilas"></tbody>
     </table>
   </section>
@@ -846,6 +856,13 @@ async function cargarCotizacion(folio) {
   pintarCabecera();
   pintarLineas(); doc.lineas.forEach(cargarStockLinea);
   doc.cotizacionOrigen = String(folio);
+  // La OC de la cotización (si se emitió desde esta ventana) pasa a la nota de venta
+  const o = await api('/api/documentos/origen/' + encodeURIComponent(folio));
+  if (o.ok && o.cuerpo?.encontrada && o.cuerpo.nro_oc && !doc.nroOC) {
+    doc.nroOC = o.cuerpo.nro_oc; doc.fechaOC = o.cuerpo.fecha_oc || '';
+    pintarResumenDatos();
+    if (o.cuerpo.adjuntos?.length) $('resumenDatos').textContent += ' · archivo de OC de la cotización';
+  }
   aviso('cotMsg', detalle.length ? 'ok' : 'warn', detalle.length
     ? `Cotización N° ${folio} cargada (${detalle.length} productos). Revisa y emite la nota de venta.`
     : `Se encontró la cotización N° ${folio}, pero KAME no trajo sus productos.`);
@@ -1011,47 +1028,75 @@ $('btnExcel').onclick = () => {
 };
 
 // ---------- Historial ----------
+let historial = [];
+const ESTADOS = { confirmado: 'Confirmado', sin_confirmar: 'Revisar en ERP', rechazado: 'Rechazado', sin_folio: 'Revisar en ERP' };
+
 $('btnHistorial').onclick = async () => {
   mostrarVista('historial');
-  $('histFilas').innerHTML = '<tr><td colspan="8" class="chico">Cargando…</td></tr>';
+  $('histFilas').innerHTML = '<tr><td colspan="9" class="chico">Cargando…</td></tr>';
   const r = await api('/api/documentos/historial');
-  const filas = r.cuerpo?.items || [];
-  $('histFilas').innerHTML = filas.length ? '' : '<tr><td colspan="8" class="chico">Aún no hay documentos emitidos desde esta ventana.</td></tr>';
-  const estados = { confirmado: 'Confirmado', sin_confirmar: 'Revisar en ERP', rechazado: 'Rechazado', sin_folio: 'Revisar en ERP' };
+  historial = r.cuerpo?.items || [];
+  // Lista de clientes para el filtro (los que aparecen en los documentos)
+  const clientes = [...new Map(historial.map((f) => [f.rut, f.rzn_social || f.rut])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+  const actual = $('filtroCliente').value;
+  $('filtroCliente').innerHTML = '<option value="">Todos los clientes</option>';
+  clientes.forEach(([rut, nombre]) => { const o = document.createElement('option'); o.value = rut; o.textContent = `${nombre} (${rut})`; $('filtroCliente').appendChild(o); });
+  if (clientes.some(([rut]) => rut === actual)) $('filtroCliente').value = actual;
+  pintarHistorial();
+};
+
+let filtroTipo = '';
+[...$('filtroTipo').children].forEach((b) => (b.onclick = () => {
+  filtroTipo = b.dataset.tipo;
+  [...$('filtroTipo').children].forEach((x) => x.classList.toggle('on', x === b));
+  pintarHistorial();
+}));
+$('filtroCliente').onchange = () => pintarHistorial();
+$('filtroTexto').oninput = () => pintarHistorial();
+
+function pintarHistorial() {
+  // Cotizaciones por folio: para mostrar en la nota de venta la OC heredada
+  const cotPorFolio = new Map(historial.filter((f) => f.tipo === 'cotizacion' && f.folio).map((f) => [String(f.folio), f]));
+  const q = $('filtroTexto').value.trim().toLowerCase();
+  const filas = historial.filter((f) => {
+    if (filtroTipo && f.tipo !== filtroTipo) return false;
+    if ($('filtroCliente').value && f.rut !== $('filtroCliente').value) return false;
+    if (q) {
+      const cot = cotPorFolio.get(String(f.cotizacion_origen));
+      const texto = [f.folio, f.rzn_social, f.rut, f.nro_oc, cot?.nro_oc, f.cotizacion_origen].join(' ').toLowerCase();
+      if (!texto.includes(q)) return false;
+    }
+    return true;
+  });
+  $('filtroConteo').textContent = `${filas.length} de ${historial.length} documentos`;
+  const tb = $('histFilas'); tb.innerHTML = '';
+  if (!filas.length) { tb.innerHTML = `<tr><td colspan="9" class="chico">${historial.length ? 'Ningún documento coincide con el filtro.' : 'Aún no hay documentos emitidos desde esta ventana.'}</td></tr>`; return; }
+  const enlace = (texto, titulo, accion) => {
+    const b = document.createElement('button'); b.className = 'enlace oc-link'; b.textContent = texto; b.title = titulo; b.onclick = accion; return b;
+  };
   filas.forEach((f) => {
     const tr = document.createElement('tr');
-    [f.fecha?.slice(0, 16), f.tipo === 'pedido' ? 'Nota de venta' : 'Cotización', f.folio || '—', f.rzn_social || f.rut, f.vendedor, pesos(f.total), estados[f.estado] || f.estado]
-      .forEach((v, i) => {
-        const td = document.createElement('td');
-        if (i === 2 && f.folio) {
-          // Folio: enlace que abre el documento como quedó en KAME
-          const b = document.createElement('button'); b.className = 'enlace oc-link'; b.textContent = f.folio;
-          b.title = 'Ver ' + (f.tipo === 'pedido' ? 'nota de venta' : 'cotización') + ' N° ' + f.folio;
-          b.onclick = () => verDocumento(f.id);
-          td.appendChild(b);
-        } else td.textContent = v ?? '';
-        if (i === 5) td.className = 'num'; if (i === 4) td.className = 'ocultar-movil';
-        tr.appendChild(td);
-      });
-    // Columna OC: el número (azul y con manito si hay archivo para ver)
-    const tdOC = document.createElement('td');
-    const adj = f.adjuntos || [];
-    if (adj.length) {
-      adj.forEach((a, i) => {
-        const b = document.createElement('button'); b.className = 'enlace oc-link';
-        b.textContent = f.nro_oc ? (i ? ` (${i + 1})` : f.nro_oc) : (i ? ` (${i + 1})` : 'Ver OC');
-        b.title = 'Ver archivo: ' + a.nombre;
-        b.onclick = () => verAdjunto(f.id, a.id);
-        tdOC.appendChild(b);
-      });
-    } else {
-      tdOC.textContent = f.nro_oc || '—';
-      if (!f.nro_oc) tdOC.className = 'chico';
-    }
-    tr.appendChild(tdOC);
-    $('histFilas').appendChild(tr);
+    const celda = (contenido, clase) => { const td = document.createElement('td'); if (contenido instanceof Node) td.appendChild(contenido); else td.textContent = contenido ?? ''; if (clase) td.className = clase; tr.appendChild(td); return td; };
+    celda(f.fecha?.slice(0, 16));
+    celda(f.tipo === 'pedido' ? 'Nota de venta' : 'Cotización');
+    celda(f.folio ? enlace(f.folio, `Ver ${f.tipo === 'pedido' ? 'nota de venta' : 'cotización'} N° ${f.folio}`, () => verDocumento(f.id)) : '—');
+    celda(f.rzn_social || f.rut);
+    // Origen: cotización de la que viene la nota de venta
+    const cot = cotPorFolio.get(String(f.cotizacion_origen));
+    if (f.cotizacion_origen) celda(cot ? enlace(`Cot. N° ${f.cotizacion_origen}`, 'Ver la cotización de origen', () => verDocumento(cot.id)) : `Cot. N° ${f.cotizacion_origen}`);
+    else celda('—', 'chico');
+    celda(f.vendedor, 'ocultar-movil');
+    celda(pesos(f.total), 'num');
+    celda(ESTADOS[f.estado] || f.estado);
+    // OC: la propia o la heredada de la cotización; en azul si hay archivo
+    const nro = f.nro_oc || cot?.nro_oc;
+    const adj = (f.adjuntos && f.adjuntos.length) ? { reg: f.id, lista: f.adjuntos } : (cot?.adjuntos?.length ? { reg: cot.id, lista: cot.adjuntos } : null);
+    const tdOC = celda('');
+    if (adj) adj.lista.forEach((a, i) => tdOC.appendChild(enlace(i ? ` (${i + 1})` : (nro || 'Ver OC'), 'Ver archivo: ' + a.nombre, () => verAdjunto(adj.reg, a.id))));
+    else { tdOC.textContent = nro || '—'; if (!nro) tdOC.className = 'chico'; }
+    tb.appendChild(tr);
   });
-};
+}
 
 // KAME devuelve el artículo de un documento como "CODIGO - DESCRIPCION"
 function separarArticulo(texto, descripcion) {
@@ -1088,7 +1133,10 @@ function normalizarDocumento(r) {
     afecto: Number(v(k.Afecto, e.Afecto) ?? 0), iva: Number(v(k.ValorImpto1, k.IVA, k.Iva, e.ValorImpto1) ?? 0),
     total: Number(v(k.Total, k.total, e.total, r.registro.total) ?? 0),
     oc: r.registro.nro_oc ? r.registro.nro_oc + (r.registro.fecha_oc ? ' del ' + fechaCL(r.registro.fecha_oc) : '') : '',
-    adjuntos: r.adjuntos || [], registroId: r.registro.id,
+    adjuntos: (r.adjuntos || []).length ? r.adjuntos.map((a) => ({ ...a, reg: r.registro.id }))
+      : (r.adjuntosCotizacion || []).map((a) => ({ ...a, reg: r.cotizacion?.id })),
+    registroId: r.registro.id,
+    cotizacionOrigen: r.registro.cotizacion_origen, cotizacionId: r.cotizacion?.id,
   };
 }
 
@@ -1120,11 +1168,19 @@ async function verDocumento(registroId) {
       <div class="total"><span>Total</span><span>${pesos(d.total)}</span></div></div>
     ${d.cuotas.length ? `<p class="chico">Cuotas: ${d.cuotas.map((q) => `${fechaCL(q.FechaPago ?? q.fechaPago)} ${pesos(q.MontoPago ?? q.montoPago)}`).join(' · ')}</p>` : ''}
     ${fila('Glosa', d.glosa)}${d.observaciones ? '<div style="margin-top:10px"></div>' + fila('Observaciones', d.observaciones) : ''}
+    <div id="docOrigenCot" style="margin-top:10px"></div>
     <div id="docOC" style="margin-top:10px"></div>`;
+  if (d.cotizacionOrigen) {
+    const box = $('docOrigenCot'); box.innerHTML = '<span class="chico">Origen</span> ';
+    if (d.cotizacionId) {
+      const b = document.createElement('button'); b.className = 'enlace oc-link'; b.textContent = `Cotización N° ${d.cotizacionOrigen}`;
+      b.title = 'Abrir la cotización de origen'; b.onclick = () => verDocumento(d.cotizacionId); box.appendChild(b);
+    } else box.append(document.createTextNode(`Cotización N° ${d.cotizacionOrigen}`));
+  }
   if (d.oc || d.adjuntos.length) {
     const box = $('docOC'); box.innerHTML = '<span class="chico">OC</span> ';
     if (d.oc) box.append(document.createTextNode(d.oc + ' '));
-    d.adjuntos.forEach((a) => { const b = document.createElement('button'); b.className = 'enlace oc-link'; b.textContent = 'Ver archivo'; b.title = a.nombre; b.onclick = () => verAdjunto(d.registroId, a.id); box.appendChild(b); });
+    d.adjuntos.forEach((a) => { const b = document.createElement('button'); b.className = 'enlace oc-link'; b.textContent = 'Ver archivo'; b.title = a.nombre; b.onclick = () => verAdjunto(a.reg, a.id); box.appendChild(b); });
   }
   $('btnDocNV').hidden = d.tipo !== 'cotizacion';
 }

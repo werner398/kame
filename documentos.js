@@ -272,9 +272,17 @@ async function verificar(tipo, folio, totalEsperado) {
 
 const insertarRegistro = db.prepare(`
   INSERT INTO documentos_emitidos
-    (tipo, folio, vendedor, rut, rzn_social, total, estado, emitido_por, payload, respuesta, verificacion, error, nro_oc, fecha_oc)
-  VALUES (@tipo, @folio, @vendedor, @rut, @rzn_social, @total, @estado, @emitido_por, @payload, @respuesta, @verificacion, @error, @nro_oc, @fecha_oc)
+    (tipo, folio, vendedor, rut, rzn_social, total, estado, emitido_por, payload, respuesta, verificacion, error, nro_oc, fecha_oc, cotizacion_origen)
+  VALUES (@tipo, @folio, @vendedor, @rut, @rzn_social, @total, @estado, @emitido_por, @payload, @respuesta, @verificacion, @error, @nro_oc, @fecha_oc, @cotizacion_origen)
 `);
+
+// La cotización emitida desde aquí con ese folio (la más reciente), si existe.
+function registroCotizacion(folio) {
+  if (!folio) return null;
+  return db.prepare(
+    "SELECT * FROM documentos_emitidos WHERE tipo = 'cotizacion' AND folio = ? ORDER BY id DESC LIMIT 1"
+  ).get(String(folio));
+}
 
 const json = (x) => (x === undefined ? null : JSON.stringify(x));
 
@@ -306,18 +314,20 @@ router.get("/formas-pago", async (req, res) => {
 
 // GET /api/documentos/historial — últimos documentos emitidos desde aquí
 router.get("/historial", exigirAcceso, (req, res) => {
-  const columnas = `id, tipo, folio, vendedor, rut, rzn_social, total, estado, emitido_por, error, fecha, nro_oc, fecha_oc,
+  const columnas = `id, tipo, folio, vendedor, rut, rzn_social, total, estado, emitido_por, error, fecha, nro_oc, fecha_oc, cotizacion_origen,
     json_extract(payload, '$.Comentario') AS glosa,
     (SELECT json_group_array(json_object('id', a.id, 'nombre', a.nombre)) FROM adjuntos_documento a WHERE a.documento_id = documentos_emitidos.id) AS adjuntos`;
   const filas =
     req.acceso.rol === "vendedor"
-      ? db.prepare(`SELECT ${columnas} FROM documentos_emitidos WHERE vendedor = ? ORDER BY id DESC LIMIT 50`).all(req.acceso.vendedor)
-      : db.prepare(`SELECT ${columnas} FROM documentos_emitidos ORDER BY id DESC LIMIT 50`).all();
+      ? db.prepare(`SELECT ${columnas} FROM documentos_emitidos WHERE vendedor = ? ORDER BY id DESC LIMIT 500`).all(req.acceso.vendedor)
+      : db.prepare(`SELECT ${columnas} FROM documentos_emitidos ORDER BY id DESC LIMIT 500`).all();
   res.json({
     items: filas.map(({ glosa, ...f }) => ({
       ...f,
       // Documentos anteriores a guardar el N° de OC: se toma de la glosa ("OC N° 5214 del ...")
       nro_oc: f.nro_oc || String(glosa || "").match(/OC N° ([^\s.]+)/)?.[1] || null,
+      // Notas de venta anteriores a guardar el origen: se toma de la glosa ("Según cotización N° 1")
+      cotizacion_origen: f.cotizacion_origen || (f.tipo === "pedido" ? String(glosa || "").match(/cotizaci[oó]n N° (\d+)/i)?.[1] : null) || null,
       adjuntos: JSON.parse(f.adjuntos || "[]"),
     })),
   });
@@ -351,6 +361,15 @@ router.post("/:tipo", exigirAcceso, async (req, res) => {
   const emitidoPor =
     req.acceso.rol === "vendedor" ? req.acceso.vendedor : `admin: ${String(body.emitidoPor || body.vendedor || "").slice(0, 70)}`;
 
+  // Nota de venta desde una cotización: hereda la OC (N°, fecha) si no se indicó otra
+  const cotOrigen = req.params.tipo === "pedido" ? registroCotizacion(body.cotizacionOrigen) : null;
+  if (cotOrigen && !String(body.nroOC || "").trim() && cotOrigen.nro_oc) {
+    body.nroOC = cotOrigen.nro_oc;
+    body.fechaOC = cotOrigen.fecha_oc || "";
+    const f = body.fechaOC ? " del " + body.fechaOC.split("-").reverse().join("-") : "";
+    body.referenciaOC = `OC N° ${body.nroOC}${f}`;
+  }
+
   let payload;
   try {
     payload = await def.construir(
@@ -382,6 +401,7 @@ router.post("/:tipo", exigirAcceso, async (req, res) => {
     payload: json(payload),
     nro_oc: String(body.nroOC || "").trim().slice(0, 40) || null,
     fecha_oc: String(body.fechaOC || "").trim().slice(0, 10) || null,
+    cotizacion_origen: req.params.tipo === "pedido" && body.cotizacionOrigen ? String(body.cotizacionOrigen).slice(0, 20) : null,
   };
 
   let respuesta;
@@ -435,6 +455,14 @@ router.post("/:tipo", exigirAcceso, async (req, res) => {
     error: ver.confirmado ? null : "No se pudo leer de vuelta el documento",
   });
 
+  // La nota de venta también queda con los archivos de OC de su cotización
+  if (cotOrigen) {
+    db.prepare(`
+      INSERT INTO adjuntos_documento (documento_id, nombre, tipo_mime, tamano, archivo, subido_por)
+      SELECT ?, nombre, tipo_mime, tamano, archivo, subido_por FROM adjuntos_documento WHERE documento_id = ?
+    `).run(Number(registro.lastInsertRowid), cotOrigen.id);
+  }
+
   res.status(ver.confirmado ? 200 : 202).json({
     estado,
     tipo: def.nombre,
@@ -476,17 +504,41 @@ router.get("/registro/:id", exigirAcceso, async (req, res) => {
     try { docKame = (await leerDocumento(fila.tipo, fila.folio)).doc; }
     catch (e) { errorKame = e.message; }
   }
-  res.json({
+  const respuestaRegistro = {
     registro: {
       id: fila.id, tipo: fila.tipo, folio: fila.folio, estado: fila.estado, vendedor: fila.vendedor,
       rut: fila.rut, rzn_social: fila.rzn_social, total: fila.total, fecha: fila.fecha,
       nro_oc: fila.nro_oc, fecha_oc: fila.fecha_oc, error: fila.error,
+      cotizacion_origen: fila.cotizacion_origen
+        || (fila.tipo === "pedido" ? String(JSON.parse(fila.payload || "{}").Comentario || "").match(/cotizaci[oó]n N° (\d+)/i)?.[1] : null) || null,
     },
     enviado: fila.payload ? JSON.parse(fila.payload) : null,
     docKame,
     errorKame,
     adjuntos,
-  });
+  };
+  // Datos de la cotización de origen (OC heredada y enlace para abrirla)
+  const cot = registroCotizacion(respuestaRegistro.registro.cotizacion_origen);
+  if (cot && documentoPermitido(req, cot.id)) {
+    respuestaRegistro.cotizacion = { id: cot.id, folio: cot.folio, nro_oc: cot.nro_oc, fecha_oc: cot.fecha_oc };
+    if (!respuestaRegistro.registro.nro_oc) {
+      respuestaRegistro.registro.nro_oc = cot.nro_oc;
+      respuestaRegistro.registro.fecha_oc = cot.fecha_oc;
+    }
+    if (!adjuntos.length) {
+      respuestaRegistro.adjuntosCotizacion = db.prepare("SELECT id, nombre FROM adjuntos_documento WHERE documento_id = ?").all(cot.id);
+    }
+  }
+  res.json(respuestaRegistro);
+});
+
+// GET /api/documentos/origen/:folio — OC de una cotización emitida desde aquí
+// (para que la nota de venta la muestre al cargar la cotización)
+router.get("/origen/:folio", exigirAcceso, (req, res) => {
+  const cot = registroCotizacion(req.params.folio);
+  if (!cot || !documentoPermitido(req, cot.id)) return res.json({ encontrada: false });
+  const adjuntos = db.prepare("SELECT id, nombre FROM adjuntos_documento WHERE documento_id = ?").all(cot.id);
+  res.json({ encontrada: true, id: cot.id, nro_oc: cot.nro_oc, fecha_oc: cot.fecha_oc, adjuntos });
 });
 
 // POST /api/documentos/registro/:id/adjunto  { nombre, tipo, base64 }
