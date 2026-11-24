@@ -1,6 +1,41 @@
 require("dotenv").config();
+
+// Un error no controlado en una consulta (por ejemplo, KAME respondiendo algo
+// inesperado) no debe botar todo el servidor: se registra en los logs de
+// Railway y el backend sigue atendiendo.
+process.on("unhandledRejection", (motivo) => {
+  console.error("[unhandledRejection]", motivo instanceof Error ? motivo.stack : motivo);
+});
+process.on("uncaughtException", (error) => {
+  console.error("[uncaughtException]", error.stack || error);
+});
 const express = require("express");
 const cors = require("cors");
+
+// Express 4 no captura los errores de las rutas async (quedan como promesa
+// rechazada). Este parche, aplicado ANTES de cargar las rutas, los envía al
+// manejador de errores del final, que responde 500 sin botar el servidor.
+{
+  const protoRouter = Object.getPrototypeOf(express.Router());
+  for (const metodo of ["get", "post", "put", "delete", "patch"]) {
+    const original = protoRouter[metodo];
+    protoRouter[metodo] = function (ruta, ...handlers) {
+      const envueltos = handlers.map((h) =>
+        typeof h === "function" && h.length < 4
+          ? function (req, res, next) {
+              try {
+                const r = h(req, res, next);
+                if (r && typeof r.catch === "function") r.catch(next);
+              } catch (error) {
+                next(error);
+              }
+            }
+          : h
+      );
+      return original.call(this, ruta, ...envueltos);
+    };
+  }
+}
 
 const { router: stockRouter, refrescarCacheStock } = require("./stock");
 const { router: ventasRouter } = require("./ventas");
@@ -39,6 +74,13 @@ app.use("/api/proveedores", proveedoresRouter);
 app.use("/api/movimientos", movimientosRouter);
 app.use("/api/documentos", documentosRouter);
 app.use("/api/vendedores", rutasVendedores(listarVendedores));
+
+// Errores dentro de las rutas: respuesta 500 con el motivo, sin caer el servidor
+// eslint-disable-next-line no-unused-vars
+app.use((error, req, res, next) => {
+  console.error("[error en ruta]", req.method, req.originalUrl, error.stack || error);
+  if (!res.headersSent) res.status(error.status || 500).json({ error: error.message || "Error interno" });
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
