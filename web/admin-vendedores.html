@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Administración — Claves de vendedores</title>
+<style>
+  [hidden] { display:none !important; }
+  body { margin:0; font:13px Tahoma, Verdana, sans-serif; background:#ece9d8; color:#111; }
+  header { background:linear-gradient(#0a246a,#3a6ea5); color:#fff; padding:10px 16px; }
+  header h1 { margin:0; font-size:16px; } header p { margin:4px 0 0; font-size:12px; opacity:.9; }
+  main { max-width:820px; margin:0 auto; padding:14px; display:grid; gap:12px; }
+  fieldset { border:1px solid #8a9bb0; background:#fff; padding:10px 12px 12px; margin:0; }
+  legend { color:#0a246a; font-weight:bold; padding:0 4px; }
+  .fila { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+  label { display:flex; flex-direction:column; gap:3px; font-size:12px; }
+  input { font:inherit; padding:4px 6px; border:1px solid #7f9db9; }
+  button { font:inherit; padding:4px 12px; border:1px solid #003c74; border-radius:3px; background:linear-gradient(#fff,#e3e3db); cursor:pointer; }
+  button.primario { background:linear-gradient(#5b8fd6,#2a5ea8); color:#fff; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { border:1px solid #c5ccd6; padding:5px 6px; text-align:left; }
+  th { background:#dfe6f0; font-weight:normal; }
+  .si { color:#1e7b34; font-weight:bold; } .no { color:#9a6700; }
+  .msg { padding:8px 10px; border-left:4px solid #9a6700; background:#fff8e6; }
+  .msg.err { border-color:#b42318; background:#fdecea; } .msg.ok { border-color:#1e7b34; background:#eaf6ec; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Claves de vendedores</h1>
+  <p>Los vendedores salen de KAME (Maestro de vendedores). Aquí les asignas la clave para entrar a la ventana de ventas.</p>
+</header>
+<main>
+  <fieldset>
+    <legend>Administrador</legend>
+    <div class="fila">
+      <label>Clave de administrador<input id="claveAdmin" type="password" size="24"></label>
+      <label style="flex:1">Backend<input id="api"></label>
+      <button id="btnEntrar" class="primario">Entrar</button>
+    </div>
+  </fieldset>
+  <div id="avisoVolumen"></div>
+  <div id="aviso"></div>
+  <fieldset>
+    <legend>Vendedores en KAME</legend>
+    <table>
+      <thead><tr><th>Vendedor</th><th style="width:110px">Acceso</th><th style="width:300px">Nueva clave</th><th style="width:110px"></th></tr></thead>
+      <tbody id="filas"><tr><td colspan="4">Entra con la clave de administrador.</td></tr></tbody>
+    </table>
+    <p style="font-size:11px;color:#555">Para agregar un vendedor, créalo primero en KAME y luego recarga esta página. Cambiar la clave cierra las sesiones abiertas de ese vendedor.</p>
+  </fieldset>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const leer = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+$('api').value = leer('kame_api_base', 'https://kame-production-828c.up.railway.app');
+
+async function api(ruta, opciones = {}) {
+  const resp = await fetch($('api').value.replace(/\/$/, '') + ruta, {
+    ...opciones,
+    headers: { 'Content-Type': 'application/json', 'x-clave': $('claveAdmin').value },
+  });
+  let cuerpo = null; try { cuerpo = await resp.json(); } catch {}
+  return { ok: resp.ok, status: resp.status, cuerpo };
+}
+
+function aviso(tipo, texto) {
+  $('aviso').innerHTML = texto ? `<div class="msg ${tipo}"></div>` : '';
+  if (texto) $('aviso').firstChild.textContent = texto;
+}
+
+async function cargar(opciones) {
+  const sesion = await api('/api/vendedores/sesion');
+  if (!sesion.ok || sesion.cuerpo?.rol !== 'admin') { aviso('err', 'Clave de administrador incorrecta.'); return; }
+  if (!opciones?.mantenerAviso) aviso('', '');
+  const r = await api('/api/vendedores?refrescar=1');
+  if (!r.ok) { aviso('err', r.cuerpo?.error || 'No se pudieron leer los vendedores de KAME'); return; }
+  $('avisoVolumen').innerHTML = r.cuerpo.baseDatosPersistente ? '' : '<div class="msg">' +
+    'Atención: la base de datos del backend no está en un volumen de Railway. Las claves se borrarán en el próximo despliegue. Conecta un volumen al servicio antes de repartir claves.</div>';
+  const tb = $('filas'); tb.innerHTML = '';
+  if (!r.cuerpo.vendedores.length) { tb.innerHTML = '<tr><td colspan="4">KAME no tiene vendedores creados.</td></tr>'; return; }
+  r.cuerpo.vendedores.forEach((v) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="n"></td><td>${v.tieneClave ? '<span class="si">Con clave</span>' : '<span class="no">Sin clave</span>'}</td>
+      <td><div class="fila"><input type="password" class="nueva" placeholder="mínimo 6 caracteres" style="flex:1">
+      <button class="guardar primario">Guardar</button></div></td>
+      <td>${v.tieneClave ? '<button class="quitar">Quitar acceso</button>' : ''}</td>`;
+    tr.querySelector('.n').textContent = v.nombre;
+    tr.querySelector('.guardar').onclick = async () => {
+      const r2 = await api('/api/vendedores/clave', { method: 'PUT', body: JSON.stringify({ vendedor: v.nombre, clave: tr.querySelector('.nueva').value }) });
+      if (r2.ok) { aviso('ok', `Clave guardada para ${v.nombre}.`); cargar({ mantenerAviso: true }); } else aviso('err', r2.cuerpo?.error || 'Error');
+    };
+    const q = tr.querySelector('.quitar');
+    if (q) q.onclick = async () => {
+      const r2 = await api('/api/vendedores/clave', { method: 'DELETE', body: JSON.stringify({ vendedor: v.nombre }) });
+      if (r2.ok) { aviso('ok', `Acceso quitado a ${v.nombre}.`); cargar({ mantenerAviso: true }); } else aviso('err', r2.cuerpo?.error || 'Error');
+    };
+    tb.appendChild(tr);
+  });
+}
+$('btnEntrar').onclick = () => cargar();
+$('claveAdmin').onkeydown = (e) => { if (e.key === 'Enter') cargar(); };
+</script>
+</body>
+</html>

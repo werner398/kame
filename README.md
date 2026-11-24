@@ -20,9 +20,12 @@ todo con validaciones y registro de auditoría propio.
 - `GET /api/productos/:sku/auditoria` — historial de cambios
 - `GET /api/movimientos?sku=&bodega=&desde=&hasta=` — kardex desde getInformeInventario, con saldo calculado desde el stock actual
 - `GET /api/documentos/opciones` — vendedores (desde KAME) y bodegas
-- `POST /api/documentos/cotizacion` y `POST /api/documentos/pedido` — header `x-clave: CLAVE_ADMIN`; body `{ rut, vendedor, bodega, formaPago, items:[{articulo, cantidad, precioUnitario, descuentoPct}], comentario, enviar }`. Con `enviar:false` solo devuelve la vista previa. Con `enviar:true` crea el documento en KAME y lo vuelve a leer para confirmarlo. No se emiten facturas ni boletas.
+- `GET /api/vendedores` — vendedores de KAME y si tienen clave (llena el desplegable "Emitido por")
+- `POST /api/vendedores/entrar` — body `{ vendedor, clave }` → sesión de 12 h (`Authorization: Bearer <token>`)
+- `PUT /api/vendedores/clave` / `DELETE /api/vendedores/clave` — header `x-clave: CLAVE_ADMIN`; asigna o quita la clave de un vendedor
+- `POST /api/documentos/cotizacion` y `POST /api/documentos/pedido` — con sesión de vendedor (emite solo a su nombre) o header `x-clave: CLAVE_ADMIN`; body `{ rut, vendedor, bodega, formaPago, items:[{articulo, cantidad, precioUnitario, descuentoPct}], comentario, enviar }`. Con `enviar:false` solo devuelve la vista previa. Con `enviar:true` crea el documento en KAME y lo vuelve a leer para confirmarlo. No se emiten facturas ni boletas.
 - `GET /api/documentos/:tipo/:folio` — lee una cotización o nota de venta de KAME
-- `GET /api/documentos/historial` — header `x-clave`; últimos 50 documentos emitidos desde el dashboard
+- `GET /api/documentos/historial` — últimos 50 documentos (el vendedor ve solo los suyos)
 
 ## Cómo desplegarlo en la nube (Railway — sin conocimientos técnicos)
 

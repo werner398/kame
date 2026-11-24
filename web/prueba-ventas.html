@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prueba de emisión — Cotizaciones y notas de venta</title>
 <style>
+  [hidden] { display:none !important; }
   :root { --borde:#8a9bb0; --fondo:#ece9d8; --azul:#0a246a; --ok:#1e7b34; --warn:#9a6700; --err:#b42318; }
   * { box-sizing: border-box; }
   body { margin:0; font:13px Tahoma, Verdana, sans-serif; background:var(--fondo); color:#111; }
@@ -44,19 +45,28 @@
 <body>
 <header>
   <h1>Prueba de emisión: cotizaciones y notas de venta</h1>
-  <p>Página temporal para verificar que KAME guarda los documentos creados por la API. No emite facturas ni boletas.</p>
+  <p>Cada vendedor entra con su nombre y su clave. Solo cotizaciones y notas de venta; no emite facturas ni boletas.</p>
 </header>
 <main>
 
   <fieldset>
     <legend>Acceso</legend>
-    <div class="fila">
-      <label>Clave de emisión<input id="clave" type="password" size="24" autocomplete="off"></label>
-      <label>Emitido por<input id="emitidoPor" size="18" placeholder="tu nombre"></label>
-      <label style="flex:1">Backend<input id="api"></label>
-      <button id="btnConectar">Conectar</button>
+    <div id="formAcceso" class="fila">
+      <label>Emitido por<select id="emitidoPor"><option value="">— cargando vendedores —</option></select></label>
+      <label>Clave<input id="clave" type="password" size="18" autocomplete="current-password"></label>
+      <label style="flex-direction:row; align-items:center; gap:6px">
+        <input type="checkbox" id="modoAdmin"> Clave de administrador
+      </label>
+      <button id="btnEntrar" class="primario">Entrar</button>
+    </div>
+    <div id="sesionActiva" class="fila" hidden>
+      <span>Emitiendo como <b id="quien"></b></span>
+      <button id="btnSalir">Salir</button>
     </div>
     <div id="estadoConexion" class="chico" style="margin-top:6px"></div>
+    <details class="chico" style="margin-top:6px"><summary>Backend</summary>
+      <div class="fila" style="margin-top:4px"><input id="api" style="flex:1"><button id="btnRecargar">Recargar vendedores</button></div>
+    </details>
   </fieldset>
 
   <fieldset>
@@ -73,7 +83,6 @@
         <div id="resClientes" class="resultados" hidden></div>
       </label>
       <label>RUT<input id="rut" size="14"></label>
-      <label>Vendedor<select id="vendedor"><option value="">— cargar —</option></select></label>
       <label>Bodega<select id="bodega"></select></label>
       <label>Pago
         <select id="formaPago"><option value="1">Contado</option></select>
@@ -134,17 +143,33 @@ const leer = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { re
 const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 
 $('api').value = leer('kame_api_base', 'https://kame-production-828c.up.railway.app');
-$('emitidoPor').value = leer('kame_emitido_por', '');
-try { $('clave').value = sessionStorage.getItem('kame_clave') || ''; } catch {}
+
+// sesion = { rol: 'vendedor', vendedor, token } | { rol: 'admin', vendedor, clave }
+let sesion = null;
+try { sesion = JSON.parse(localStorage.getItem('kame_sesion_ventas') || 'null'); } catch {}
+
+function guardarSesion() {
+  try {
+    // La clave de administrador nunca se guarda en el navegador
+    if (sesion && sesion.rol === 'vendedor') localStorage.setItem('kame_sesion_ventas', JSON.stringify(sesion));
+    else localStorage.removeItem('kame_sesion_ventas');
+  } catch {}
+}
 
 async function api(ruta, opciones = {}) {
   const base = $('api').value.replace(/\/$/, '');
+  const auth = sesion?.rol === 'vendedor' ? { Authorization: 'Bearer ' + sesion.token }
+             : sesion?.rol === 'admin' ? { 'x-clave': sesion.clave } : {};
   const resp = await fetch(base + ruta, {
     ...opciones,
-    headers: { 'Content-Type': 'application/json', 'x-clave': $('clave').value, ...(opciones.headers || {}) },
+    headers: { 'Content-Type': 'application/json', ...auth, ...(opciones.headers || {}) },
   });
   let cuerpo = null;
   try { cuerpo = await resp.json(); } catch {}
+  if (resp.status === 401 && sesion && ruta !== '/api/vendedores/entrar') {
+    sesion = null; guardarSesion(); pintarSesion();
+    $('estadoConexion').textContent = 'Tu sesión venció. Vuelve a entrar.';
+  }
   return { status: resp.status, ok: resp.ok, cuerpo };
 }
 
@@ -154,37 +179,68 @@ function mostrar(tipo, texto, datos) {
   $('salida').textContent = datos === undefined ? '—' : JSON.stringify(datos, null, 2);
 }
 
-// ---- Conexión: vendedores y bodegas ----
-async function conectar() {
+// ---- Vendedores de KAME en "Emitido por" ----
+let vendedores = [];
+async function cargarVendedores(refrescar) {
   guardar('kame_api_base', $('api').value);
-  guardar('kame_emitido_por', $('emitidoPor').value);
-  try { sessionStorage.setItem('kame_clave', $('clave').value); } catch {}
-  $('estadoConexion').textContent = 'Cargando vendedores desde KAME…';
+  $('estadoConexion').textContent = 'Leyendo vendedores desde KAME…';
   try {
-    const r = await api('/api/documentos/opciones?refrescar=1');
-    const bodegas = r.cuerpo?.bodegas || [];
-    $('bodega').innerHTML = bodegas.map((b) => `<option>${b}</option>`).join('');
-    if (!r.ok) {
-      $('estadoConexion').textContent = 'No se pudieron cargar vendedores: ' + (r.cuerpo?.error || r.status);
-      mostrar('err', 'Error al leer vendedores de KAME', r.cuerpo);
-      return;
-    }
-    const v = r.cuerpo.vendedores;
-    $('vendedor').innerHTML = `<option value="">${v.length ? '— elegir —' : '(sin vendedor)'}</option>` +
-      v.map((n) => `<option>${n.replace(/</g, '&lt;')}</option>`).join('');
+    const r = await api('/api/vendedores' + (refrescar ? '?refrescar=1' : ''));
+    if (!r.ok) { $('estadoConexion').textContent = 'No se pudieron leer los vendedores: ' + (r.cuerpo?.error || r.status); return; }
+    vendedores = r.cuerpo.vendedores;
+    const sel = $('emitidoPor');
+    sel.innerHTML = '<option value="">— elige tu nombre —</option>';
+    vendedores.forEach((v) => {
+      const o = document.createElement('option');
+      o.value = v.nombre;
+      o.textContent = v.nombre + (v.tieneClave ? '' : ' (sin clave)');
+      sel.appendChild(o);
+    });
     const ultimo = leer('kame_ultimo_vendedor', '');
-    if (ultimo && v.includes(ultimo)) $('vendedor').value = ultimo;
-    $('estadoConexion').textContent = `Conectado. ${v.length} vendedores en KAME.` +
-      (v.length === 0 ? ' Se puede emitir igual, sin vendedor. La respuesta cruda de KAME está en el resultado.' : '');
-    if (v.length === 0) mostrar('warn', 'KAME no devolvió vendedores reconocibles', r.cuerpo);
+    if (vendedores.some((v) => v.nombre === ultimo)) sel.value = ultimo;
+    $('estadoConexion').textContent = vendedores.length
+      ? `${vendedores.length} vendedores en KAME.`
+      : 'KAME no tiene vendedores creados.';
   } catch (e) {
     $('estadoConexion').textContent = 'No se pudo conectar al backend: ' + e.message;
   }
 }
-$('btnConectar').onclick = conectar;
 
-// ---- Tipo ----
-$('vendedor').onchange = () => guardar('kame_ultimo_vendedor', $('vendedor').value);
+function pintarSesion() {
+  $('formAcceso').hidden = !!sesion;
+  $('sesionActiva').hidden = !sesion;
+  if (sesion) $('quien').textContent = sesion.vendedor + (sesion.rol === 'admin' ? ' (administrador)' : '');
+  document.querySelectorAll('#btnVista, #btnHistorial').forEach((b) => (b.disabled = !sesion));
+  $('btnEmitir').disabled = !sesion || !$('confirmo').checked;
+}
+
+$('btnEntrar').onclick = async () => {
+  const vendedor = $('emitidoPor').value;
+  const clave = $('clave').value;
+  if (!vendedor) { $('estadoConexion').textContent = 'Elige tu nombre en "Emitido por".'; return; }
+  if (!clave) { $('estadoConexion').textContent = 'Escribe tu clave.'; return; }
+  guardar('kame_ultimo_vendedor', vendedor);
+  if ($('modoAdmin').checked) {
+    sesion = { rol: 'admin', vendedor, clave };
+    const r = await api('/api/vendedores/sesion');
+    if (!r.ok) { sesion = null; $('estadoConexion').textContent = 'Clave de administrador incorrecta.'; return; }
+  } else {
+    const r = await api('/api/vendedores/entrar', { method: 'POST', body: JSON.stringify({ vendedor, clave }) });
+    if (!r.ok) { $('estadoConexion').textContent = r.cuerpo?.error || ('Error ' + r.status); return; }
+    sesion = { rol: 'vendedor', vendedor: r.cuerpo.vendedor, token: r.cuerpo.token };
+  }
+  $('clave').value = '';
+  guardarSesion(); pintarSesion();
+  $('estadoConexion').textContent = '';
+};
+$('clave').onkeydown = (e) => { if (e.key === 'Enter') $('btnEntrar').click(); };
+
+$('btnSalir').onclick = async () => {
+  if (sesion?.rol === 'vendedor') await api('/api/vendedores/salir', { method: 'POST' }).catch(() => {});
+  sesion = null; guardarSesion(); pintarSesion();
+};
+$('btnRecargar').onclick = () => cargarVendedores(true);
+
 $('tipo').onchange = () => { $('lblVigencia').style.display = $('tipo').value === 'cotizacion' ? '' : 'none'; };
 
 // ---- Buscador de clientes ----
@@ -280,12 +336,12 @@ function recalcular() {
 function cuerpoDocumento(enviar) {
   return {
     rut: $('rut').value.trim(),
-    vendedor: $('vendedor').value,
+    vendedor: sesion?.vendedor || '',
     bodega: $('bodega').value,
     formaPago: $('formaPago').value,
     diasVigencia: Number($('diasVigencia').value || 15),
     comentario: $('comentario').value,
-    emitidoPor: $('emitidoPor').value || $('vendedor').value || 'sin nombre',
+    emitidoPor: sesion?.vendedor || '',
     items: leerLineas(),
     enviar,
   };
@@ -308,12 +364,12 @@ async function enviarDocumento(enviar) {
     mostrar('err', 'No se pudo contactar al backend: ' + e.message);
   } finally {
     $('btnVista').disabled = false;
-    $('btnEmitir').disabled = !$('confirmo').checked;
+    $('btnEmitir').disabled = !sesion || !$('confirmo').checked;
   }
 }
 $('btnVista').onclick = () => enviarDocumento(false);
 $('btnEmitir').onclick = () => enviarDocumento(true);
-$('confirmo').onchange = () => { $('btnEmitir').disabled = !$('confirmo').checked; };
+$('confirmo').onchange = () => { $('btnEmitir').disabled = !sesion || !$('confirmo').checked; };
 
 // ---- Consultas ----
 $('btnConsultar').onclick = async () => {
@@ -330,7 +386,10 @@ $('btnHistorial').onclick = async () => {
 
 agregarLinea();
 $('bodega').innerHTML = ['Antofagasta', 'Renca', 'Concepcion'].map((b) => `<option>${b}</option>`).join('');
-if ($('clave').value) conectar();
+pintarSesion();
+cargarVendedores(false);
+// Retomar sesión guardada si sigue vigente
+if (sesion?.rol === 'vendedor') api('/api/vendedores/sesion').then((r) => { if (!r.ok) { sesion = null; guardarSesion(); pintarSesion(); } });
 </script>
 </body>
 </html>

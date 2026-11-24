@@ -86,6 +86,24 @@ db.exec(`
     error TEXT,
     fecha TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- Claves propias de cada vendedor de KAME para entrar a la ventana de
+  -- ventas. Solo se guarda el hash (scrypt), nunca la clave.
+  CREATE TABLE IF NOT EXISTS claves_vendedor (
+    vendedor_clave TEXT PRIMARY KEY,
+    vendedor TEXT NOT NULL,
+    sal TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    activo INTEGER NOT NULL DEFAULT 1,
+    actualizado TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS sesiones_vendedor (
+    token_hash TEXT PRIMARY KEY,
+    vendedor TEXT NOT NULL,
+    vendedor_clave TEXT NOT NULL,
+    expira INTEGER NOT NULL
+  );
 `);
 
 // Migración: si la tabla proveedores_producto ya existía de antes (sin la

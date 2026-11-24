@@ -4,15 +4,13 @@
 // esos documentos van al SII y no se pueden deshacer. Solo cotizaciones
 // y notas de venta, que no son documentos tributarios.
 //
-// Toda escritura exige la clave CLAVE_ADMIN (variable de entorno en
-// Railway). Si la variable no existe, la emisión queda bloqueada.
-// Más adelante esto se reemplaza por usuario y clave por vendedor.
+// Para emitir hay que entrar como vendedor (nombre de KAME + clave propia)
+// o como administrador (CLAVE_ADMIN). El vendedor solo emite a su nombre.
 //
 // KAME ya nos devolvió "200 OK" sin guardar nada (updArticulo), así que
 // un documento solo se marca "confirmado" después de volver a leerlo.
 
 const express = require("express");
-const crypto = require("crypto");
 const { llamarKame } = require("./kameClient");
 const db = require("./db");
 const { VentaPayloadError, payloadCotizacion, payloadPedido } = require("./ventaPayloadBuilder");
@@ -44,23 +42,9 @@ const TIPOS = {
   },
 };
 
-// ---------- Protección con clave ----------
-
-function exigirClave(req, res, next) {
-  const esperada = process.env.CLAVE_ADMIN;
-  if (!esperada) {
-    return res.status(503).json({
-      error: "Emisión bloqueada: falta configurar la variable CLAVE_ADMIN en Railway.",
-    });
-  }
-  const recibida = String(req.get("x-clave") || "");
-  const a = crypto.createHash("sha256").update(recibida).digest();
-  const b = crypto.createHash("sha256").update(esperada).digest();
-  if (!crypto.timingSafeEqual(a, b)) {
-    return res.status(401).json({ error: "Clave incorrecta" });
-  }
-  next();
-}
+// ---------- Acceso ----------
+// Admin (CLAVE_ADMIN) o vendedor con sesión; ver vendedores.js.
+const { exigirAcceso } = require("./vendedores");
 
 // ---------- Consultas a KAME (resolvers) ----------
 
@@ -203,13 +187,12 @@ router.get("/opciones", async (req, res) => {
 });
 
 // GET /api/documentos/historial — últimos documentos emitidos desde aquí
-router.get("/historial", exigirClave, (req, res) => {
-  const filas = db
-    .prepare(
-      `SELECT id, tipo, folio, vendedor, rut, rzn_social, total, estado, emitido_por, error, fecha
-       FROM documentos_emitidos ORDER BY id DESC LIMIT 50`
-    )
-    .all();
+router.get("/historial", exigirAcceso, (req, res) => {
+  const columnas = "id, tipo, folio, vendedor, rut, rzn_social, total, estado, emitido_por, error, fecha";
+  const filas =
+    req.acceso.rol === "vendedor"
+      ? db.prepare(`SELECT ${columnas} FROM documentos_emitidos WHERE vendedor = ? ORDER BY id DESC LIMIT 50`).all(req.acceso.vendedor)
+      : db.prepare(`SELECT ${columnas} FROM documentos_emitidos ORDER BY id DESC LIMIT 50`).all();
   res.json({ items: filas });
 });
 
@@ -229,13 +212,16 @@ router.get("/:tipo/:folio", async (req, res) => {
 // Body: { rut, vendedor, bodega, formaPago?, cuotas?, items:[{articulo, cantidad, precioUnitario, descuentoPct?}],
 //         comentario?, documento?, diasVigencia?, emitidoPor?, enviar: boolean }
 // Con enviar=false (por defecto) solo devuelve la vista previa, sin tocar KAME.
-router.post("/:tipo", exigirClave, async (req, res) => {
+router.post("/:tipo", exigirAcceso, async (req, res) => {
   const def = TIPOS[req.params.tipo];
   if (!def) return res.status(404).json({ error: "Tipo debe ser cotizacion o pedido" });
 
-  const body = req.body || {};
+  const body = { ...(req.body || {}) };
   const enviar = body.enviar === true;
-  const emitidoPor = String(body.emitidoPor || "prueba").slice(0, 80);
+  // Un vendedor con sesión SOLO emite a su propio nombre, venga lo que venga
+  if (req.acceso.rol === "vendedor") body.vendedor = req.acceso.vendedor;
+  const emitidoPor =
+    req.acceso.rol === "vendedor" ? req.acceso.vendedor : `admin: ${String(body.emitidoPor || body.vendedor || "").slice(0, 70)}`;
 
   let payload;
   try {
@@ -317,4 +303,4 @@ router.post("/:tipo", exigirClave, async (req, res) => {
   });
 });
 
-module.exports = { router, extraerFolio, extraerDocumento };
+module.exports = { router, listarVendedores, extraerFolio, extraerDocumento };

@@ -9,7 +9,8 @@ const { router: clientesRouter } = require("./clientes");
 const { router: productosRouter } = require("./productos");
 const { router: proveedoresRouter } = require("./proveedores");
 const { router: movimientosRouter } = require("./movimientos");
-const { router: documentosRouter } = require("./documentos");
+const { router: documentosRouter, listarVendedores } = require("./documentos");
+const { crearRutas: rutasVendedores } = require("./vendedores");
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use("/api/productos", productosRouter);
 app.use("/api/proveedores", proveedoresRouter);
 app.use("/api/movimientos", movimientosRouter);
 app.use("/api/documentos", documentosRouter);
+app.use("/api/vendedores", rutasVendedores(listarVendedores));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
