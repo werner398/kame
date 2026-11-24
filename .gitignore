@@ -1,0 +1,8 @@
+# Nunca subir credenciales ni datos locales (este repo es público)
+.env
+.env.*
+!env.example
+node_modules/
+*.db
+*.sqlite
+*.sqlite3

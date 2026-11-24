@@ -1,0 +1,1937 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel KAME</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ECECEC;
+    --surface: #FFFFFF;
+    --ink: #000000;
+    --label: #14488C;
+    --ink-soft: #444444;
+    --ink-faint: #8B928F;
+    --line: #B7B7B7;
+    --line-strong: #8C8C8C;
+    --accent: #14488C;
+    --accent-soft: #DCE8F6;
+    --warn: #B5541F;
+    --warn-soft: #F6E6DC;
+    --ok: #2F7A3E;
+    --ok-soft: #E4EEE5;
+    --pending: #8B928F;
+    --pending-soft: #EDEEEC;
+    --radius: 2px;
+    --btn-face: #F0F0F0;
+    --btn-face-hover: #E2E2E2;
+    --btn-border: #ACACAC;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: Tahoma, "Segoe UI", Arial, sans-serif; font-size: 12.5px; line-height: 1.4;
+  }
+  .mono, td.num, .sku, input { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 12px; }
+  button, select, label, legend { font-family: Tahoma, "Segoe UI", Arial, sans-serif; }
+
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--line-strong); padding: 8px 14px 0; }
+  .topbar-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 6px; }
+  .topbar-head .name { font-weight: 700; font-size: 13.5px; color: var(--ink); }
+  .topbar-head button {
+    font-size: 11px; color: var(--ink-soft); background: var(--btn-face); border: 1px solid var(--btn-border);
+    border-radius: var(--radius); cursor: pointer; padding: 4px 9px; font-family: inherit;
+  }
+  .topbar-head button:hover { background: var(--btn-face-hover); }
+
+  .tabs { display: flex; gap: 1px; flex-wrap: wrap; }
+  .tab {
+    padding: 6px 13px; font-size: 12px; color: #333; background: #DEDEDE;
+    border: 1px solid var(--line-strong); border-bottom: none; border-radius: 2px 2px 0 0; cursor: pointer;
+  }
+  .tab.active { background: var(--surface); color: #000; font-weight: 700; border-color: var(--line-strong); position: relative; top: 1px; }
+  .tab .pend { font-size: 9px; color: var(--pending); margin-left: 4px; }
+
+  main { padding: 14px; max-width: 1300px; margin: 0 auto; }
+
+  fieldset { border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); padding: 10px 12px 12px; margin: 0; min-width: 0; }
+  legend { font-size: 11px; color: #000; padding: 0 5px; font-weight: 700; }
+
+  .row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; }
+  .row > * { flex: 1; min-width: 0; }
+
+  .field-line { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+  .field-line:last-child { margin-bottom: 0; }
+  .field-line label { color: var(--label); font-size: 12px; font-weight: 700; white-space: nowrap; min-width: 92px; }
+  .field-line input, .field-line select { flex: 1; min-width: 0; }
+  .field-line input[readonly] { background: #F2F2F2; color: #444; }
+
+  .field-stack { margin-bottom: 7px; }
+  .field-stack:last-child { margin-bottom: 0; }
+  .field-stack label { display: block; color: var(--label); font-size: 11px; font-weight: 700; margin-bottom: 2px; }
+  .field-stack input, .field-stack select { width: 100%; }
+  .field-stack input[readonly] { background: #F2F2F2; color: #444; }
+
+  .kv-compact { display: flex; align-items: baseline; gap: 6px; margin-bottom: 5px; font-size: 12px; white-space: nowrap; }
+  .kv-compact:last-child { margin-bottom: 0; }
+  .kv-compact label { color: var(--label); font-weight: 700; }
+  .kv-compact .val { color: #000; font-weight: 400; }
+  .kv-compact .val.highlight { background: #EAF7EA; padding: 1px 5px; border-radius: 2px; }
+
+  input, select {
+    font-size: 12px; padding: 3px 6px; border: 1px solid var(--line-strong);
+    border-radius: var(--radius); background: var(--surface); color: var(--ink);
+  }
+  input:focus, select:focus { outline: 1px solid var(--label); border-color: var(--label); }
+
+  button.btn {
+    font-family: Tahoma, "Segoe UI", Arial, sans-serif; font-size: 12px; font-weight: 400; padding: 5px 11px;
+    border-radius: var(--radius); border: 1px solid var(--btn-border);
+    background: var(--btn-face);
+    background-image: linear-gradient(to bottom, #FAFAFA, #E4E4E4);
+    color: #000; cursor: pointer; white-space: nowrap;
+  }
+  button.btn:hover { background-image: linear-gradient(to bottom, #FFFFFF, #ECECEC); }
+  button.btn:active { background-image: linear-gradient(to bottom, #DDDDDD, #EFEFEF); }
+  button.btn.primary {
+    background: #FFD24C; background-image: linear-gradient(to bottom, #FFE28A, #F5C842);
+    border-color: #C99A1E; color: #3A2E00; font-weight: 700;
+  }
+  button.btn.primary:hover { background-image: linear-gradient(to bottom, #FFEBA8, #F9D566); }
+  button.btn.big-green {
+    background: #5CB85C; background-image: linear-gradient(to bottom, #79CC79, #4CAE4C);
+    border-color: #3D8B3D; color: #fff; font-weight: 700; font-size: 14px;
+  }
+  button.btn.gold {
+    background-image: linear-gradient(to bottom, #E8C878, #D4A937); border-color: #A9821E; color: #3A2E00;
+  }
+  button.btn.red {
+    background-image: linear-gradient(to bottom, #E58A82, #D9534F); border-color: #A83A36; color: #fff;
+  }
+  button.btn:disabled { opacity: 0.5; cursor: not-allowed; background-image: none; }
+  button.btn:disabled:hover { background-image: none; }
+
+  .listbox { border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); height: 90px; overflow-y: auto; font-size: 12px; }
+  .listbox .opt { padding: 3px 7px; cursor: pointer; }
+  .listbox .opt:hover { background: var(--accent-soft); }
+  .listbox .empty { padding: 8px; color: var(--ink-faint); }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: auto; margin-top: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th {
+    text-align: left; font-weight: 700; color: #000; font-size: 11.5px; padding: 6px 9px;
+    border-bottom: 1px solid var(--line-strong); border-right: 1px solid #E4E4E4; white-space: nowrap; background: #EFEFEF; position: sticky; top: 0;
+  }
+  td { padding: 5px 9px; border-bottom: 1px solid var(--line); border-right: 1px solid #EEEEEE; white-space: nowrap; }
+  .celda-comentario { white-space: normal; word-break: break-word; min-width: 160px; max-width: 340px; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: #F7F8FA; }
+  tbody tr:hover { background: var(--accent-soft); }
+  td.num { text-align: right; }
+  .empty-state, .loading-state { padding: 24px 14px; text-align: center; color: var(--ink-faint); font-size: 12px; }
+
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 9px; font-size: 10.5px; font-weight: 700; }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+
+  .pending-panel {
+    padding: 28px 18px; text-align: center; color: var(--ink-soft); background: var(--pending-soft);
+    border: 1px dashed var(--line-strong); border-radius: var(--radius); font-size: 12px;
+  }
+  .pending-panel b { color: var(--ink); }
+
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .modal { background: var(--surface); border-radius: var(--radius); width: 420px; max-width: 90vw; padding: 18px; border: 1px solid var(--line-strong); }
+  .modal h3 { margin: 0 0 4px; font-size: 13.5px; }
+  .modal .modal-sub { color: var(--ink-soft); font-size: 11.5px; margin: 0 0 12px; }
+  .diff-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--bg); font-size: 12px; }
+  .diff-row:last-child { border-bottom: none; }
+  .diff-old { color: var(--warn); text-decoration: line-through; }
+  .diff-new { color: var(--ok); font-weight: 700; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .toast { position: fixed; bottom: 18px; right: 18px; background: #222; color: #fff; padding: 9px 15px; border-radius: var(--radius); font-size: 12px; z-index: 60; }
+  .toast.error { background: var(--warn); }
+
+  @media (max-width: 900px) { .row { flex-direction: column; } }
+
+  /* ============================================================
+     CELULAR (pantallas angostas)
+     ============================================================ */
+  @media (max-width: 720px) {
+    body { font-size: 13px; }
+
+    /* Barra superior: nombre y botón de configuración apilados */
+    .topbar { padding: 8px 10px 0; }
+    .topbar-head { flex-wrap: wrap; gap: 6px; }
+    .topbar-head button { padding: 7px 12px; font-size: 12px; }
+
+    /* Pestañas: scroll horizontal en vez de amontonarse */
+    .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+    .tab { flex-shrink: 0; padding: 9px 14px; font-size: 12.5px; }
+
+    main { padding: 10px; }
+
+    /* Toda fila o grilla de columnas pasa a una sola columna */
+    .px-top-grid { display: flex !important; flex-direction: column; }
+    .filtros-stock-row { flex-wrap: wrap; }
+    .filtros-stock-row > * { flex: 1 1 45% !important; min-width: 130px; }
+    .filtros-stock-row #cs-buscar { flex: 1 1 100% !important; }
+
+    fieldset { padding: 10px; }
+    legend { font-size: 11.5px; }
+
+    /* Etiquetas más angostas para dejar más espacio al campo */
+    .field-line label { min-width: 78px; font-size: 11.5px; }
+    .field-stack label { font-size: 11px; }
+
+    /* Botones y campos con más alto, más fáciles de tocar */
+    button.btn { padding: 9px 14px; font-size: 13px; }
+    input, select { padding: 7px 8px; font-size: 13px; }
+    input[type="date"] { min-width: 0; }
+
+    /* Tablas: mismo tamaño de letra, pero se puede deslizar sin problema */
+    .table-wrap { margin-top: 8px; -webkit-overflow-scrolling: touch; }
+    table { font-size: 12px; }
+    th, td { padding: 7px 8px; }
+
+    /* Ventanas modales ocupan casi toda la pantalla */
+    .modal { width: 100% !important; max-width: 96vw; padding: 14px; max-height: 90vh; overflow-y: auto; }
+    .modal h3 { font-size: 14px; }
+
+    .listbox { height: 130px; }
+
+    /* Los grupos de botones lado a lado pasan a apilarse */
+    .kv-compact { flex-wrap: wrap; }
+  }
+
+  @media (max-width: 480px) {
+    .topbar-head .name { font-size: 13px; }
+    .tab { padding: 8px 11px; font-size: 12px; }
+    button.btn.big-green { font-size: 13px; padding: 10px; }
+  }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-head">
+    <span class="name">Panel KAME</span>
+    <button id="btn-config">Configuración de conexión</button>
+  </div>
+  <div class="tabs" id="tabs"></div>
+</div>
+
+<main id="main"></main>
+
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<script>
+const state = {
+  apiBase: localStorage.getItem('kame_api_base') || 'https://kame-production-828c.up.railway.app',
+  usuario: localStorage.getItem('kame_usuario') || 'awerner@csi-sa.cl',
+  tab: 'ventas',
+};
+
+const TABS = [
+  { id: 'ventas', label: 'Ventas Clientes/Producto' },
+  { id: 'producto', label: 'Producto x Clientes' },
+  { id: 'movimiento', label: 'Movimiento productos', pendiente: true },
+  { id: 'stock', label: 'Consulta stock' },
+  { id: 'saldos', label: 'Saldo clientes' },
+  { id: 'vencidas', label: 'Facturas Vencidas' },
+];
+
+// Bodegas reales configuradas en KAME (confirmadas en el listado de
+// KAME: Antofagasta, Renca, Concepcion — no hay Santiago ni Vulco,
+// esos eran datos del ambiente de pruebas).
+const BODEGAS_REALES = ['Antofagasta', 'Renca', 'Concepcion'];
+
+function guardarConfig(apiBase, usuario) {
+  state.apiBase = apiBase; state.usuario = usuario;
+  localStorage.setItem('kame_api_base', apiBase);
+  localStorage.setItem('kame_usuario', usuario);
+}
+
+async function api(ruta, opciones = {}) {
+  const resp = await fetch(`${state.apiBase}${ruta}`, {
+    ...opciones,
+    headers: { 'Content-Type': 'application/json', ...(opciones.headers || {}) },
+  });
+  const texto = await resp.text();
+  let cuerpo;
+  try { cuerpo = texto ? JSON.parse(texto) : null; } catch { cuerpo = texto; }
+  if (!resp.ok) {
+    const err = new Error(cuerpo?.error || `Error ${resp.status}`);
+    err.detalle = cuerpo;
+    throw err;
+  }
+  return cuerpo;
+}
+
+function toast(msg, tipo = 'ok') {
+  const root = document.getElementById('toast-root');
+  const el = document.createElement('div');
+  el.className = 'toast' + (tipo === 'error' ? ' error' : '');
+  el.textContent = msg;
+  root.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+function fmtMoney(n) {
+  if (n === null || n === undefined || n === '') return '';
+  return Number(n).toLocaleString('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 });
+}
+function fmtMonedaProveedor(n, moneda) {
+  if (n === null || n === undefined || n === '') return '';
+  const cod = moneda || 'CLP';
+  try {
+    return Number(n).toLocaleString('es-CL', { style: 'currency', currency: cod, maximumFractionDigits: cod === 'CLP' ? 0 : 2 });
+  } catch {
+    return `${n} ${cod}`;
+  }
+}
+function fmtDate(d) {
+  if (!d) return '';
+  try { return new Date(d).toLocaleDateString('es-CL'); } catch { return d; }
+}
+
+function descargarExcel(nombre, filas, columnas) {
+  const datos = filas.map(f => {
+    const fila = {};
+    columnas.forEach(c => { fila[c.titulo] = f[c.clave] ?? ''; });
+    return fila;
+  });
+  const hoja = XLSX.utils.json_to_sheet(datos);
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja, 'Datos');
+  XLSX.writeFile(libro, nombre);
+}
+
+function renderTabs() {
+  const el = document.getElementById('tabs');
+  el.innerHTML = '';
+  TABS.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (state.tab === t.id ? ' active' : '');
+    btn.innerHTML = t.label + (t.pendiente ? '<span class="pend">· pendiente</span>' : '');
+    btn.onclick = () => { state.tab = t.id; renderTabs(); renderMain(); };
+    el.appendChild(btn);
+  });
+}
+document.getElementById('btn-config').onclick = () => abrirModalConfig();
+
+const panelesInicializados = {};
+
+function renderMain() {
+  const main = document.getElementById('main');
+  if (!state.apiBase) { abrirModalConfig(); return; }
+  const vistas = {
+    ventas: vistaVentasClientesProducto,
+    producto: vistaProductoXClientes,
+    movimiento: vistaMovimiento,
+    stock: vistaConsultaStock,
+    saldos: vistaSaldoClientes,
+    vencidas: vistaFacturasVencidas,
+  };
+
+  // Creamos un contenedor propio por cada pestaña, una sola vez. Así,
+  // cambiar de pestaña solo oculta/muestra paneles en vez de destruir
+  // y reconstruir el contenido — lo que ya buscaste queda ahí.
+  if (!main.dataset.inicializado) {
+    main.dataset.inicializado = '1';
+    TABS.forEach(t => {
+      const panel = document.createElement('div');
+      panel.id = 'panel-' + t.id;
+      panel.style.display = 'none';
+      main.appendChild(panel);
+    });
+  }
+
+  TABS.forEach(t => {
+    document.getElementById('panel-' + t.id).style.display = (t.id === state.tab) ? '' : 'none';
+  });
+
+  // El contenido de cada pestaña solo se genera la primera vez que se visita.
+  if (!panelesInicializados[state.tab]) {
+    panelesInicializados[state.tab] = true;
+    vistas[state.tab](document.getElementById('panel-' + state.tab));
+  }
+}
+
+function vistaVentasClientesProducto(main) {
+  main.innerHTML = `
+    <div class="row" style="align-items:stretch">
+      <fieldset style="flex:1; display:flex; flex-direction:column">
+        <legend>Nombre Cliente</legend>
+        <div class="field-line">
+          <input id="vc-nombre" placeholder="RUT, código o nombre del cliente" style="flex:1">
+          <button class="btn" id="vc-editar" title="Buscar">Buscar</button>
+        </div>
+        <div style="margin-top:6px; font-size:11px; color:var(--ink-soft)">Coincidencias:</div>
+        <div class="listbox" id="vc-coincidencias" style="margin-top:4px; flex:1"><div class="empty"></div></div>
+      </fieldset>
+
+      <fieldset style="flex:1.2">
+        <legend>Ficha del cliente</legend>
+        <div style="display:flex; gap:10px">
+          <div style="flex:1">
+            <div class="field-line"><label>Codigo Cliente:</label><input id="vc-codigo" readonly></div>
+            <div class="field-line"><label>Rut Cliente:</label><input id="vc-rut" readonly></div>
+            <div class="field-line"><label>Dirección:</label><input id="vc-direccion" readonly></div>
+            <div class="field-line"><label>Telefono:</label><input id="vc-telefono"></div>
+            <div class="field-line"><label>Contacto:</label><input id="vc-contacto"></div>
+            <div class="field-line"><label>Email:</label><input id="vc-email"></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px; width:110px">
+            <button class="btn" id="vc-observaciones" style="flex:1" disabled title="Sin endpoint de observaciones en la API">Observaciones</button>
+            <button class="btn" id="vc-actualizar-datos" style="flex:1" disabled title="Sin endpoint de actualización de ficha en la API">Actualizar<br>Datos</button>
+          </div>
+        </div>
+      </fieldset>
+
+      <div style="flex:0.9; display:flex; flex-direction:column; gap:10px">
+        <fieldset>
+          <legend>Filtros</legend>
+          <div class="field-line"><label>Filtro busqueda:</label><input id="vc-filtro"></div>
+          <div class="field-line">
+            <label style="min-width:38px">Período:</label>
+            <select id="vc-rango-rapido" style="flex:1">
+              <option value="365" selected>Último año</option>
+              <option value="730">Últimos 2 años</option>
+              <option value="1095">Últimos 3 años</option>
+              <option value="1460">Últimos 4 años</option>
+              <option value="1825">Últimos 5 años</option>
+              <option value="2190">Últimos 6 años</option>
+              <option value="2555">Últimos 7 años</option>
+              <option value="2920">Últimos 8 años</option>
+              <option value="3285">Últimos 9 años</option>
+              <option value="3650">Últimos 10 años</option>
+            </select>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Detalles</legend>
+          <div class="kv-compact"><label>Total Compras:</label><span class="val" id="vc-total-compras">$0</span></div>
+          <div class="kv-compact"><label>Cantidad Facturas:</label><span class="val" id="vc-cant-facturas">0</span></div>
+          <div style="display:flex; gap:6px; margin-top:8px">
+            <button class="btn" id="vc-excel">Excel</button>
+            <button class="btn" id="vc-graficar">Graficar</button>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Codigo Producto</th><th>Nombre Producto</th><th>Nro. Docto</th><th>Fecha Emision</th>
+          <th style="text-align:right">Cant.</th><th style="text-align:right">Precio/u</th>
+          <th style="text-align:right">Precio c/dcto</th><th style="text-align:right">Dcto.</th>
+          <th style="text-align:right">Total</th><th>Glosa</th><th>Vendedor</th>
+        </tr></thead>
+        <tbody id="vc-tbody"><tr><td colspan="11" class="empty-state">Busca un cliente para ver sus compras.</td></tr></tbody>
+      </table>
+    </div>
+  `;
+
+  let ventasCliente = [];
+
+  async function buscarVentas() {
+    const desde = hace30(Number(document.getElementById('vc-rango-rapido').value));
+    const hasta = hoy();
+    const rut = document.getElementById('vc-rut').value;
+
+    const tbody = document.getElementById('vc-tbody');
+    tbody.innerHTML = `<tr><td colspan="11" class="loading-state">Cargando…</td></tr>`;
+    try {
+      const resp = await api(`/api/ventas?fechaDesde=${desde}&fechaHasta=${hasta}&per_page=300`);
+      const todas = resp?.items ?? resp?.data ?? [];
+      ventasCliente = rut ? todas.filter(v => (v.Rut ?? v.rutCliente ?? v.rut ?? '') === rut) : todas;
+
+      if (ventasCliente.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="11" class="empty-state">Sin ventas en ese período.</td></tr>`;
+      } else {
+        tbody.innerHTML = ventasCliente.map(v => `
+          <tr>
+            <td class="mono">${v.SKU || ''}</td>
+            <td>${v.Descripcion ?? ''}</td>
+            <td class="mono">${v.Folio ?? ''}</td>
+            <td>${fmtDate(v.Fecha)}</td>
+            <td class="num mono">${v.Cantidad ?? ''}</td>
+            <td class="num mono">${fmtMoney(v.PrecioUnitario)}</td>
+            <td class="num mono">${v.Cantidad ? fmtMoney(v.Total / v.Cantidad) : fmtMoney(v.PrecioUnitario)}</td>
+            <td class="num mono">${v.PorcDescuento ? v.PorcDescuento + '%' : ''}</td>
+            <td class="num mono">${fmtMoney(v.Total)}</td>
+            <td>${v.Comentario ?? ''}</td>
+            <td>${v.NombreVendedor ?? ''}</td>
+          </tr>
+        `).join('');
+      }
+      const total = ventasCliente.reduce((s, v) => s + Number(v.Total ?? v.total ?? 0), 0);
+      document.getElementById('vc-total-compras').textContent = fmtMoney(total);
+      document.getElementById('vc-cant-facturas').textContent = new Set(ventasCliente.map(v => v.Folio)).size;
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="11" class="empty-state">Error: ${e.message}</td></tr>`;
+    }
+  }
+
+  document.getElementById('vc-rango-rapido').addEventListener('change', buscarVentas);
+
+  document.getElementById('vc-editar').onclick = () => buscarClienteUnificado(document.getElementById('vc-nombre').value.trim(), cargarCliente, 'vc-coincidencias');
+  document.getElementById('vc-nombre').addEventListener('keydown', e => { if (e.key === 'Enter') buscarClienteUnificado(e.target.value.trim(), cargarCliente, 'vc-coincidencias'); });
+  window.__cargarClienteSeleccionado = cargarCliente;
+  const vcBuscarEnVivo = debounce(texto => buscarClienteEnVivo(texto, 'vc-coincidencias'), 350);
+  document.getElementById('vc-nombre').addEventListener('input', e => vcBuscarEnVivo(e.target.value.trim()));
+
+  async function cargarCliente(rut) {
+    if (!rut) return;
+    try {
+      const { ficha } = await api(`/api/clientes/${encodeURIComponent(rut)}`);
+      const listaF = Array.isArray(ficha) ? ficha : (ficha?.items ?? ficha?.data ?? []);
+      const f = listaF[0];
+      if (!f) { toast(`No se encontró un cliente con RUT ${rut}`, 'error'); return; }
+      document.getElementById('vc-codigo').value = f?.Rut ?? f?.codigo ?? f?.rut ?? rut;
+      document.getElementById('vc-rut').value = f?.Rut ?? f?.rut ?? rut;
+      document.getElementById('vc-direccion').value = f?.Direccion ?? f?.direccion ?? '';
+      document.getElementById('vc-telefono').value = f?.Telefono ?? f?.telefono ?? '';
+      document.getElementById('vc-contacto').value = f?.Contacto ?? f?.contacto ?? '';
+      document.getElementById('vc-email').value = f?.Email ?? f?.email ?? '';
+      document.getElementById('vc-coincidencias').innerHTML = `<div class="opt">${f?.RazonSocial ?? f?.nombre ?? rut}</div>`;
+      await buscarVentas();
+    } catch (e) {
+      toast(`No se encontró el cliente: ${e.message}`, 'error');
+    }
+  }
+
+  document.getElementById('vc-excel').onclick = () => {
+    if (ventasCliente.length === 0) { toast('No hay datos para exportar', 'error'); return; }
+    descargarExcel('ventas.xlsx', ventasCliente, [
+      { clave: 'SKU', titulo: 'Codigo Producto' }, { clave: 'Descripcion', titulo: 'Nombre Producto' },
+      { clave: 'Folio', titulo: 'Nro Docto' }, { clave: 'Fecha', titulo: 'Fecha' },
+      { clave: 'Cantidad', titulo: 'Cant' }, { clave: 'Total', titulo: 'Total' }, { clave: 'NombreVendedor', titulo: 'Vendedor' },
+    ]);
+  };
+
+  document.getElementById('vc-graficar').onclick = async () => {
+    const rut = document.getElementById('vc-rut').value;
+    if (!rut) { toast('Primero busca un cliente', 'error'); return; }
+    const nombreCliente = document.querySelector('#vc-coincidencias .opt')?.textContent ?? rut;
+
+    const btn = document.getElementById('vc-graficar');
+    btn.disabled = true; btn.textContent = 'Cargando historial…';
+    try {
+      const resp = await api(`/api/ventas?fechaDesde=${hace30(3650)}&fechaHasta=${hoy()}&per_page=500`);
+      const todas = resp?.items ?? resp?.data ?? [];
+      const delCliente = todas.filter(v => (v.Rut ?? v.rutCliente ?? v.rut ?? '') === rut);
+      abrirModalGrafico(nombreCliente, delCliente);
+    } catch (e) {
+      toast(`Error al cargar ventas: ${e.message}`, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Graficar';
+    }
+  };
+}
+
+function vistaProductoXClientes(main) {
+  main.innerHTML = `
+    <div class="px-top-grid" style="display:grid; grid-template-columns: 0.85fr 1.55fr 0.85fr 0.9fr; gap:10px; align-items:stretch; margin-bottom:10px">
+      <fieldset style="display:flex; flex-direction:column">
+        <legend>Seleccion de producto</legend>
+        <div class="field-line" style="margin-bottom:6px">
+          <label style="min-width:56px; font-size:11px">Período:</label>
+          <select id="px-anos-compras" style="flex:1">
+            <option value="365" selected>Último año</option>
+            <option value="730">Últimos 2 años</option>
+            <option value="1095">Últimos 3 años</option>
+            <option value="1460">Últimos 4 años</option>
+            <option value="1825">Últimos 5 años</option>
+            <option value="2190">Últimos 6 años</option>
+            <option value="2555">Últimos 7 años</option>
+            <option value="2920">Últimos 8 años</option>
+            <option value="3285">Últimos 9 años</option>
+            <option value="3650">Últimos 10 años</option>
+          </select>
+        </div>
+        <div class="field-line">
+          <input id="px-producto" placeholder="Producto" style="flex:1">
+          <button class="btn" id="px-editar" title="Editar" style="min-width:38px">✎</button>
+        </div>
+        <div style="margin-top:8px; font-size:11px; color:var(--label); font-weight:700">Seleccion Producto:</div>
+        <div class="listbox" id="px-lista" style="margin-top:4px; height:150px; max-height:150px; overflow-y:auto"><div class="empty"></div></div>
+        <button class="btn" style="width:100%; margin-top:auto" disabled title="KAME confirmó que no maneja relación producto-proveedor a nivel de ERP — no es posible implementar esto">Buscar por Proveedor</button>
+      </fieldset>
+
+      <fieldset style="display:flex; flex-direction:column">
+        <legend>Busqueda de Producto</legend>
+        <div class="field-line">
+          <label>Código:</label>
+          <input id="px-codigo-input" style="flex:1">
+          <button class="btn" id="px-chat" title="Comentario" disabled style="min-width:38px">💬</button>
+          <button class="btn" id="px-act-codigo" title="Actualizar" style="min-width:44px">Act.</button>
+        </div>
+        <div class="field-line">
+          <label>Nombre:</label>
+          <input id="px-nombre-edit" style="flex:1">
+          <div style="min-width:38px"></div>
+          <button class="btn" id="px-aplica-nombre" title="Guardar nombre" style="min-width:44px">Act.</button>
+        </div>
+        <div class="field-line">
+          <label>Bodega:</label>
+          <select id="px-bodega" style="flex:1"><option>TODAS</option>${BODEGAS_REALES.map(b => `<option>${b}</option>`).join('')}</select>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:8px">
+          <div style="display:flex; flex-direction:column; gap:6px; width:130px">
+            <button class="btn gold" id="px-consolida-bod" title="Ventas por año (cantidad de unidades). Consumo/Ajuste/Kit siguen pendientes del kardex — enero 2027">Consolida Bod</button>
+            <button class="btn red" disabled title="Depende del mismo endpoint de historial de inventario — confirmado en roadmap de KAME para enero 2027">Consolida</button>
+          </div>
+          <button class="btn big-green" id="px-buscar" style="flex:1">Buscar</button>
+        </div>
+        <div style="margin-top:8px; display:flex; gap:6px; align-items:stretch; flex:1">
+          <div style="flex:1; display:flex; flex-direction:column; gap:4px">
+            <textarea id="px-nota-nueva" placeholder="" style="width:100%; height:32px; font-size:12px; padding:4px 6px; border:1px solid var(--line-strong); border-radius:var(--radius); resize:none; font-family:inherit"></textarea>
+            <div id="px-historial" style="width:100%; flex:1; min-height:52px; font-size:11.5px; padding:6px; border:1px solid var(--line-strong); border-radius:var(--radius); background:var(--surface); color:var(--ink-soft); overflow-y:auto">—</div>
+          </div>
+          <button class="btn" id="px-guardar-nota" title="Guardar" style="min-width:38px">💾</button>
+        </div>
+      </fieldset>
+
+      <div style="display:flex; flex-direction:column; gap:10px">
+        <fieldset>
+          <legend>Resumen</legend>
+          <div class="kv-compact"><label>Cant vendida:</label><span class="val" id="px-cant-vendida">0</span></div>
+          <div class="kv-compact"><label>Total Vendido:</label><span class="val" id="px-total-vendido">$0</span></div>
+          <div class="kv-compact"><label>Stock producto:</label><span class="val" id="px-stock">0</span></div>
+          <div class="kv-compact"><label>Stock Proy.:</label><span class="val" id="px-stock-proy" title="Sin endpoint de stock proyectado en la API">—</span></div>
+          <div class="kv-compact"><label>Costo:</label><span class="val highlight" id="px-costo">$0</span></div>
+        </fieldset>
+        <fieldset style="flex:1; display:flex; flex-direction:column; justify-content:space-between">
+          <legend>Min y Max</legend>
+          <div style="font-weight:700; font-size:12px; margin-bottom:6px">${hoy().split('-').reverse().join('-')}</div>
+          <div style="display:flex; gap:6px; align-items:flex-end">
+            <div style="flex:1">
+              <div class="field-stack"><label>Min:</label><input id="px-min" type="number"></div>
+              <div class="field-stack"><label>Máx:</label><input id="px-max" type="number"></div>
+            </div>
+            <button class="btn" id="px-aplica-minmax" title="Guardar Min/Max" style="align-self:stretch; min-width:44px">Act</button>
+          </div>
+        </fieldset>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:10px">
+        <fieldset>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+            <legend style="padding:0">Proveedor Preferido</legend>
+            <button class="btn" id="px-abrir-proveedores" title="Gestionar proveedores (registro propio, no sincroniza con KAME)" style="min-width:32px; padding:4px 10px">A</button>
+          </div>
+          <div class="field-stack"><label>Proveedor Pref.:</label><input readonly id="px-proveedor-pref" placeholder="Sin proveedor registrado" style="font-weight:700"></div>
+          <div class="field-stack"><label>Precio Proveedor:</label><input readonly id="px-proveedor-precio" style="font-weight:700"></div>
+          <div class="field-stack"><label>Desc. Proveedor:</label><input readonly id="px-proveedor-codigo" style="font-weight:700"></div>
+        </fieldset>
+        <fieldset style="flex:1; display:flex; flex-direction:column; justify-content:flex-end">
+          <legend>Lote Mínimo y Precio Lista</legend>
+          <div style="display:flex; gap:6px; align-items:flex-end">
+            <div style="flex:1">
+              <div class="field-stack"><label>L. Min:</label><input readonly disabled title="Sin endpoint de lote mínimo en la API"></div>
+              <div class="field-stack"><label>P. Lista:</label><input id="px-plista" type="number"></div>
+            </div>
+            <button class="btn" id="px-aplica-precio" title="Guardar P. Lista" style="align-self:stretch; min-width:44px">Act.</button>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+
+    <div class="row" style="align-items:stretch">
+      <fieldset style="flex:4; display:flex; align-items:center">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:10px 24px; font-size:12px; width:100%">
+          <span>Stock Antofagasta: <b id="px-stock-anto">0</b></span>
+          <span>Stock Renca: <b id="px-stock-renca">0</b></span>
+          <span>Stock Concepción: <b id="px-stock-conce">0</b></span>
+          <span>Stock Proyectado: <b>0</b></span>
+        </div>
+      </fieldset>
+      <fieldset style="flex:0.35; min-width:170px; display:flex; align-items:center">
+        <div style="font-size:12px; white-space:nowrap"><span>Precio Lista: <b id="px-precio-lista-mostrar">$0</b></span></div>
+      </fieldset>
+      <fieldset style="flex:0.75; display:flex; align-items:center">
+        <div style="display:flex; gap:8px; align-items:center; font-size:12px; white-space:nowrap">
+          <label style="display:flex; align-items:center; gap:3px"><input type="checkbox" checked disabled> Grilla</label>
+          <button class="btn" disabled title="Sin datos suficientes para exportar todavía">Exportar a Excel</button>
+        </div>
+      </fieldset>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Nombre Comprador</th><th>N° documento</th><th>Fecha Compra</th>
+          <th style="text-align:right">Cantidad</th><th style="text-align:right">Precio/u</th>
+          <th style="text-align:right">Precio c/dcto</th><th style="text-align:right">Dcto</th><th style="text-align:right">Total</th>
+        </tr></thead>
+        <tbody id="px-tbody"><tr><td colspan="8" class="empty-state">Busca un producto por código.</td></tr></tbody>
+      </table>
+    </div>
+  `;
+
+  let productoActual = null;
+  let sku = null;
+  let listaProductosCache = null;
+
+  document.getElementById('px-editar').onclick = () => buscarProducto();
+  document.getElementById('px-producto').addEventListener('keydown', e => { if (e.key === 'Enter') buscarProducto(); });
+  document.getElementById('px-act-codigo').onclick = () => cargarFicha(document.getElementById('px-codigo-input').value.trim());
+  document.getElementById('px-codigo-input').addEventListener('keydown', e => { if (e.key === 'Enter') cargarFicha(e.target.value.trim()); });
+
+  async function obtenerListaProductos() {
+    if (listaProductosCache) return listaProductosCache;
+    try {
+      const resp = await api('/api/stock');
+      listaProductosCache = Array.isArray(resp.datos) ? resp.datos : (resp.datos?.data ?? []);
+    } catch {
+      listaProductosCache = [];
+    }
+    return listaProductosCache;
+  }
+
+  const buscarProductoEnVivo = debounce(async (texto) => {
+    const box = document.getElementById('px-lista');
+    if (!texto || texto.length < 2) { box.innerHTML = `<div class="empty"></div>`; return; }
+    const lista = await obtenerListaProductos();
+    const q = texto.toLowerCase();
+    const coincidencias = lista
+      .filter(p => (p.SKU ?? '').toLowerCase().includes(q) || (p.articulo ?? '').toLowerCase().includes(q))
+      .slice(0, 20);
+    if (coincidencias.length === 0) {
+      box.innerHTML = `<div class="empty">Sin coincidencias</div>`;
+      return;
+    }
+    box.innerHTML = coincidencias
+      .map(p => `<div class="opt" data-sku="${p.SKU}">${p.articulo ?? ''} ;; ${p.SKU}</div>`)
+      .join('');
+    box.querySelectorAll('.opt[data-sku]').forEach(el => {
+      const p = coincidencias.find(c => c.SKU === el.dataset.sku);
+      el.onclick = () => {
+        document.getElementById('px-producto').value = el.dataset.sku;
+        document.getElementById('px-codigo-input').value = el.dataset.sku;
+        document.getElementById('px-nombre-edit').value = p?.articulo ?? '';
+        box.innerHTML = `<div class="opt">${p?.articulo ?? ''} ;; ${el.dataset.sku}</div>`;
+        // Solo se llenan los campos acá. La búsqueda real se dispara
+        // recién cuando la persona presiona el botón "Buscar".
+      };
+    });
+  }, 300);
+  document.getElementById('px-producto').addEventListener('input', e => buscarProductoEnVivo(e.target.value.trim()));
+
+  async function buscarProducto() {
+    const q = document.getElementById('px-producto').value.trim();
+    if (!q) return;
+    document.getElementById('px-codigo-input').value = q;
+    await cargarFicha(q);
+  }
+
+  async function cargarFicha(skuBuscado) {
+    if (!skuBuscado) return;
+    try {
+      const resp = await api(`/api/productos/${encodeURIComponent(skuBuscado)}`);
+      const lista = Array.isArray(resp) ? resp : (resp?.items ?? resp?.data ?? []);
+      // KAME busca por "contiene": 577319 trae también 577319R. Preferimos
+      // la coincidencia exacta de SKU y solo si no hay, la primera.
+      const buscadoNorm = String(skuBuscado).trim().toLowerCase();
+      productoActual = lista.find(p => String(p.SKU ?? p.sku ?? '').trim().toLowerCase() === buscadoNorm) ?? lista[0];
+      if (!productoActual) {
+        toast(`"${skuBuscado}" no tiene ficha de producto en KAME (puede ser solo texto de venta, sin inventario asociado)`, 'error');
+        return;
+      }
+      sku = productoActual.SKU ?? productoActual.sku ?? skuBuscado;
+      document.getElementById('px-codigo-input').value = sku;
+      document.getElementById('px-producto').value = productoActual.Descripcion ?? productoActual.descripcion ?? sku;
+
+      // La ficha de artículo (getListArticulo) no trae costo. El costo y el
+      // stock total salen de getStock — la misma fuente que usa Consulta stock.
+      const listaStock = await obtenerListaProductos();
+      const filaStock = listaStock.find(p => String(p.SKU ?? '').trim().toLowerCase() === String(sku).trim().toLowerCase());
+      document.getElementById('px-costo').textContent = fmtMoney(filaStock?.costoPromedio ?? '') || '$0';
+      document.getElementById('px-min').value = productoActual.StockMin ?? productoActual.stockMin ?? '';
+      document.getElementById('px-max').value = productoActual.StockMax ?? productoActual.stockMax ?? '';
+      document.getElementById('px-plista').value = productoActual.PrecioVentaNeto ?? productoActual.precioVentaNeto ?? '';
+      document.getElementById('px-precio-lista-mostrar').textContent = fmtMoney(productoActual.PrecioVentaNeto ?? productoActual.precioVentaNeto);
+      document.getElementById('px-nombre-edit').value = productoActual.Descripcion ?? productoActual.descripcion ?? '';
+
+      const nombreArticuloStock = productoActual.Descripcion ?? productoActual.descripcion ?? sku;
+      document.getElementById('px-stock').textContent = Number(filaStock?.saldo ?? 0);
+
+      // KAME no trae el stock desglosado por bodega en un solo llamado —
+      // hay que pedirlo bodega por bodega.
+      const elementoPorBodega = { Antofagasta: 'px-stock-anto', Renca: 'px-stock-renca', Concepcion: 'px-stock-conce' };
+      await Promise.all(BODEGAS_REALES.map(async (bodega) => {
+        const idEl = elementoPorBodega[bodega];
+        try {
+          const resp = await api(`/api/stock/articulo/${encodeURIComponent(nombreArticuloStock)}/bodega/${encodeURIComponent(bodega)}`);
+          // KAME devuelve acá un objeto único (no una lista) con el saldo
+          // de esa bodega — ej: {"articulo":null,"SKU":null,"bodega":null,"saldo":2}
+          let total = 0;
+          if (Array.isArray(resp)) {
+            total = resp.reduce((s, r) => s + Number(r?.saldo ?? r?.stock ?? 0), 0);
+          } else if (resp && typeof resp === 'object') {
+            total = Number(resp.saldo ?? resp.stock ?? 0);
+          }
+          document.getElementById(idEl).textContent = total;
+        } catch {
+          document.getElementById(idEl).textContent = '—';
+        }
+      }));
+
+      await cargarHistorial();
+      await cargarComprasProducto(sku);
+      await cargarResumenProveedor();
+    } catch (e) {
+      toast(`Error: ${e.message}`, 'error');
+    }
+  }
+
+  async function cargarResumenProveedor() {
+    try {
+      const lista = await api(`/api/proveedores/${encodeURIComponent(sku)}`);
+      const preferido = lista.find(p => p.activo) ?? lista[0];
+      document.getElementById('px-proveedor-pref').value = preferido?.proveedor ?? '';
+      document.getElementById('px-proveedor-precio').value = preferido ? fmtMonedaProveedor(preferido.precio, preferido.moneda) : '';
+      document.getElementById('px-proveedor-codigo').value = preferido?.codigo_proveedor ?? '';
+    } catch {
+      document.getElementById('px-proveedor-pref').value = '';
+      document.getElementById('px-proveedor-precio').value = '';
+      document.getElementById('px-proveedor-codigo').value = '';
+    }
+  }
+
+  async function cargarHistorial() {
+    const el = document.getElementById('px-historial');
+    try {
+      const [auditoria, comentarios] = await Promise.all([
+        api(`/api/productos/${encodeURIComponent(sku)}/auditoria`),
+        api(`/api/productos/${encodeURIComponent(sku)}/comentarios`).catch(() => []),
+      ]);
+
+      const items = [
+        ...auditoria.map(a => ({
+          fecha: a.fecha,
+          html: `<div>${a.campo} · ${a.usuario} · ${fmtDate(a.fecha)}: <span class="diff-old">${a.valor_anterior}</span> → <span class="diff-new">${a.valor_nuevo}</span></div>`,
+        })),
+        ...comentarios.map(c => ({
+          fecha: c.fecha,
+          html: `<div>📝 ${c.usuario} · ${fmtDate(c.fecha)}: ${c.comentario}</div>`,
+        })),
+      ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+      el.innerHTML = items.length === 0
+        ? 'Sin cambios ni comentarios registrados todavía.'
+        : items.map(i => i.html).join('');
+    } catch { el.textContent = '—'; }
+  }
+
+  async function cargarComprasProducto(skuActual) {
+    const tbody = document.getElementById('px-tbody');
+    tbody.innerHTML = `<tr><td colspan="8" class="loading-state">Cargando…</td></tr>`;
+    try {
+      const dias = Number(document.getElementById('px-anos-compras').value);
+      const resp = await api(`/api/ventas?fechaDesde=${hace30(dias)}&fechaHasta=${hoy()}&per_page=300`);
+      const filas = (resp?.items ?? resp?.data ?? []).filter(v => v.SKU === skuActual);
+      let totalVendido = 0, cantVendida = 0;
+      filas.forEach(f => { totalVendido += Number(f.Total || 0); cantVendida += Number(f.Cantidad || 0); });
+      document.getElementById('px-total-vendido').textContent = fmtMoney(totalVendido) || '$0';
+      document.getElementById('px-cant-vendida').textContent = cantVendida;
+
+      tbody.innerHTML = filas.length === 0
+        ? `<tr><td colspan="8" class="empty-state">Sin compras registradas en ese período.</td></tr>`
+        : filas.map(f => `
+          <tr>
+            <td>${f.RznSocial ?? ''}</td>
+            <td class="mono">${f.Folio ?? ''}</td>
+            <td>${fmtDate(f.Fecha)}</td>
+            <td class="num mono">${f.Cantidad ?? ''}</td>
+            <td class="num mono">${fmtMoney(f.PrecioUnitario)}</td>
+            <td class="num mono">${f.Cantidad ? fmtMoney(f.Total / f.Cantidad) : fmtMoney(f.PrecioUnitario)}</td>
+            <td class="num mono">${f.PorcDescuento ? f.PorcDescuento + '%' : ''}</td>
+            <td class="num mono">${fmtMoney(f.Total)}</td>
+          </tr>
+        `).join('');
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Error: ${e.message}</td></tr>`;
+    }
+  }
+
+  document.getElementById('px-buscar').onclick = buscarProducto;
+
+  document.getElementById('px-anos-compras').addEventListener('change', () => {
+    if (sku) cargarComprasProducto(sku);
+  });
+
+  document.getElementById('px-consolida-bod').onclick = async () => {
+    if (!(await asegurarProductoActual())) return;
+    const btn = document.getElementById('px-consolida-bod');
+    btn.disabled = true; btn.textContent = 'Cargando…';
+    try {
+      const nombreProducto = productoActual.Descripcion ?? productoActual.descripcion ?? sku;
+      const hastaAno = new Date().getFullYear();
+      const desdeAno = hastaAno - 7; // últimos 8 años, como en el sistema original
+      const resp = await api(`/api/ventas?fechaDesde=${desdeAno}-01-01&fechaHasta=${hoy()}&per_page=500`);
+      const todas = resp?.items ?? resp?.data ?? [];
+      const delProducto = todas.filter(v => v.SKU === sku);
+
+      const cantidadPorAno = {};
+      for (let a = desdeAno; a <= hastaAno; a++) cantidadPorAno[a] = 0;
+      delProducto.forEach(v => {
+        const ano = String(v.Fecha ?? '').slice(0, 4);
+        if (cantidadPorAno[ano] !== undefined) cantidadPorAno[ano] += Number(v.Cantidad || 0);
+      });
+
+      abrirModalConsolidado(nombreProducto, sku, cantidadPorAno);
+    } catch (e) {
+      toast(`Error al consolidar: ${e.message}`, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Consolida Bod';
+    }
+  };
+
+  document.getElementById('px-abrir-proveedores').onclick = async () => {
+    if (!(await asegurarProductoActual())) return;
+    abrirModalProveedores(sku, productoActual.Descripcion ?? productoActual.descripcion ?? sku, cargarResumenProveedor);
+  };
+
+  async function asegurarProductoActual() {
+    if (productoActual && sku) return true;
+    const codigoActual = document.getElementById('px-codigo-input').value.trim();
+    if (!codigoActual) { toast('Primero busca un producto', 'error'); return false; }
+    await cargarFicha(codigoActual);
+    return !!(productoActual && sku);
+  }
+
+  function guardarCampo(campo, valorNuevo, etiqueta) {
+    if (!productoActual || !sku) { toast('Primero busca un producto', 'error'); return; }
+    const cambios = { [campo]: campo === 'nombre' ? valorNuevo : Number(valorNuevo) };
+    abrirModalConfirmarCambios(productoActual, cambios, { [campo]: etiqueta }, async () => {
+      if (!state.usuario) { toast('Configura tu nombre de usuario primero', 'error'); abrirModalConfig(); return; }
+      try {
+        await api(`/api/productos/${encodeURIComponent(sku)}`, { method: 'PUT', body: JSON.stringify({ usuario: state.usuario, cambios }) });
+        toast('Guardado en KAME');
+        await cargarFicha(sku);
+      } catch (e) { toast(`Error al guardar: ${e.message}`, 'error'); }
+    });
+  }
+
+  document.getElementById('px-aplica-minmax').onclick = async () => {
+    const minEscrito = document.getElementById('px-min').value;
+    const maxEscrito = document.getElementById('px-max').value;
+    if (!(await asegurarProductoActual())) return;
+    document.getElementById('px-min').value = minEscrito;
+    document.getElementById('px-max').value = maxEscrito;
+    const cambios = {};
+    if (String(minEscrito) !== String(productoActual.StockMin ?? productoActual.stockMin ?? '')) cambios.stockMin = Number(minEscrito);
+    if (String(maxEscrito) !== String(productoActual.StockMax ?? productoActual.stockMax ?? '')) cambios.stockMax = Number(maxEscrito);
+    if (Object.keys(cambios).length === 0) { toast('No hay cambios', 'error'); return; }
+    abrirModalConfirmarCambios(productoActual, cambios, { stockMin: 'Stock mínimo', stockMax: 'Stock máximo' }, async () => {
+      if (!state.usuario) { toast('Configura tu nombre de usuario primero', 'error'); abrirModalConfig(); return; }
+      try {
+        await api(`/api/productos/${encodeURIComponent(sku)}`, { method: 'PUT', body: JSON.stringify({ usuario: state.usuario, cambios }) });
+        toast('Guardado en KAME'); await cargarFicha(sku);
+      } catch (e) { toast(`Error: ${e.message}`, 'error'); }
+    });
+  };
+  document.getElementById('px-aplica-precio').onclick = async () => {
+    const valorEscrito = document.getElementById('px-plista').value;
+    if (!(await asegurarProductoActual())) return;
+    document.getElementById('px-plista').value = valorEscrito;
+    guardarCampo('precioLista', valorEscrito, 'Precio de lista');
+  };
+  document.getElementById('px-aplica-nombre').onclick = async () => {
+    const valorEscrito = document.getElementById('px-nombre-edit').value;
+    if (!(await asegurarProductoActual())) return;
+    document.getElementById('px-nombre-edit').value = valorEscrito;
+    guardarCampo('nombre', valorEscrito, 'Nombre');
+  };
+
+  document.getElementById('px-guardar-nota').onclick = async () => {
+    const texto = document.getElementById('px-nota-nueva').value.trim();
+    if (!texto) { toast('Escribe algo antes de guardar', 'error'); return; }
+    if (!(await asegurarProductoActual())) return;
+    if (!state.usuario) { toast('Configura tu nombre de usuario primero', 'error'); abrirModalConfig(); return; }
+    try {
+      await api(`/api/productos/${encodeURIComponent(sku)}/comentarios`, {
+        method: 'POST',
+        body: JSON.stringify({ usuario: state.usuario, comentario: texto }),
+      });
+      document.getElementById('px-nota-nueva').value = '';
+      toast('Comentario guardado');
+      await cargarHistorial();
+    } catch (e) {
+      toast(`Error al guardar: ${e.message}`, 'error');
+    }
+  };
+}
+
+function vistaMovimiento(main) {
+  main.innerHTML = `
+    <div class="row">
+      <fieldset style="flex:0.7">
+        <legend>Selección de producto</legend>
+        <div class="field-line"><input id="mv-producto" placeholder="Producto" disabled></div>
+        <div style="margin-top:6px; font-size:11px; color:var(--ink-soft)">Selección Producto:</div>
+        <div class="listbox" style="margin-top:4px"><div class="empty"></div></div>
+      </fieldset>
+
+      <fieldset style="flex:1.1">
+        <legend>Búsqueda de movimientos</legend>
+        <div class="field-line"><label>Codigo Producto:</label><input disabled></div>
+        <div class="field-line"><label>Nombre Producto:</label><input disabled style="flex:1"></div>
+        <div class="field-line"><label>Bodega:</label><select disabled><option>—</option></select></div>
+        <div class="field-line">
+          <label style="display:flex;align-items:center;gap:4px;min-width:auto"><input type="checkbox" disabled> Fecha</label>
+          <label style="min-width:24px">De:</label><select disabled><option>—</option></select>
+          <label style="min-width:16px">A:</label><select disabled><option>—</option></select>
+          <button class="btn" disabled>Buscar</button>
+        </div>
+      </fieldset>
+
+      <fieldset style="flex:0.7">
+        <legend>Min Max</legend>
+        <div class="field-line"><label>Codigo Act.:</label><input disabled></div>
+        <div class="field-line"><label>Min:</label><input disabled><button class="btn" disabled>Aplica</button></div>
+        <div class="field-line"><label>Max:</label><input disabled></div>
+        <div class="field-line"><label>Costo:</label><input disabled></div>
+      </fieldset>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-bottom:4px">
+      <button class="btn" disabled style="flex:1" title="Sin endpoint de kardex en la API">Cartola Producto</button>
+      <button class="btn" disabled title="Sin endpoint de kardex en la API">Exportar Excel</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Tipo Docto</th><th>Fecha</th><th>Bodega</th><th>N° Docto</th>
+          <th style="text-align:right">Entrada</th><th style="text-align:right">Salida</th>
+          <th style="text-align:right">Saldo</th><th>Glosa</th><th style="text-align:right">Costo</th>
+        </tr></thead>
+        <tbody><tr><td colspan="9">
+          <div class="pending-panel">
+            <b>Kardex de movimientos — confirmado en el roadmap de KAME.</b><br>
+            KAME confirmó que van a agregar el endpoint (getInformeInventario), con fecha estimada
+            <b>enero de 2027</b>. Hasta entonces esta tabla no puede traer datos reales, solo el stock actual
+            (pestaña "Consulta stock").
+          </div>
+        </td></tr></tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function vistaConsultaStock(main) {
+  main.innerHTML = `
+    <div class="row" style="align-items:stretch">
+      <fieldset style="flex:2.6; display:flex; flex-direction:column; justify-content:flex-start">
+        <legend>Filtros de busqueda</legend>
+        <div class="filtros-stock-row" style="display:flex; gap:8px; align-items:flex-end">
+          <div class="field-stack" style="flex:0.8"><label>Codigo</label><input id="cs-codigo"></div>
+          <div class="field-stack" style="flex:1.6"><label>Glosa</label><input id="cs-glosa"></div>
+          <div class="field-stack" style="flex:0.85"><label>Bodega</label><select id="cs-bodega"><option>TODAS</option>${BODEGAS_REALES.map(b => `<option>${b}</option>`).join('')}</select></div>
+          <div class="field-stack" style="flex:0.9"><label>Fecha Hasta</label><input type="date" id="cs-fecha-hasta" value="${hoy()}"></div>
+          <button class="btn primary" id="cs-buscar" style="flex-shrink:0">Buscar</button>
+        </div>
+      </fieldset>
+      <fieldset style="flex:0.7">
+        <legend>Detalle</legend>
+        <div style="display:flex; gap:10px">
+          <div class="field-stack" style="flex:1"><label>Total Encontrado</label><input id="cs-total" readonly></div>
+          <div class="field-stack" style="flex:1"><label>Precio</label><input id="cs-precio" readonly></div>
+        </div>
+        <div style="display:flex; gap:10px; align-items:flex-end; margin-top:8px">
+          <div class="field-stack" style="flex:1; margin-bottom:0"><label>Ultima Fecha</label><input id="cs-ultima-fecha" readonly></div>
+          <button class="btn" id="cs-copiar" style="flex-shrink:0">Copiar Info</button>
+        </div>
+      </fieldset>
+    </div>
+    <div style="display:flex; justify-content:flex-end; margin-bottom:6px">
+      <button class="btn" id="cs-excel">Exportar a Excel</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Glosa</th><th>Codigo</th><th>Unidad</th><th style="text-align:right">Stock</th><th>Bodega</th>
+          <th style="text-align:right">Minimo</th><th style="text-align:right">Maximo</th>
+          <th style="text-align:right">Costo CSI</th><th style="text-align:right">P Lista</th>
+          <th>Provee...</th><th style="text-align:right">Pr.prov.</th>
+        </tr></thead>
+        <tbody id="cs-tbody"><tr><td colspan="11" class="loading-state">Cargando stock…</td></tr></tbody>
+      </table>
+    </div>
+  `;
+
+  let datos = [];
+
+  const listaDe = (resp) => Array.isArray(resp) ? resp : (Array.isArray(resp?.datos) ? resp.datos : (resp?.datos?.data ?? resp?.data ?? resp?.items ?? []));
+  const claveArt = (r) => String(r.SKU ?? r.sku ?? r.articulo ?? '').trim();
+
+  // Con "TODAS": getStock trae solo el total por artículo, sin bodega.
+  // Pedimos además el stock de cada bodega y armamos una fila por cada
+  // bodega donde el artículo tenga saldo, con el nombre en la columna Bodega.
+  async function cargarTodasConBodega() {
+    const [respTotal, ...respBodegas] = await Promise.all([
+      api('/api/stock'),
+      ...BODEGAS_REALES.map(b => api(`/api/stock/bodega/${encodeURIComponent(b)}`).catch(() => null)),
+    ]);
+    const totales = listaDe(respTotal);
+
+    // SKU -> { Antofagasta: 2, Renca: 0.46, ... }
+    const porBodega = {};
+    const bodegasConError = [];
+    respBodegas.forEach((resp, i) => {
+      const bodega = BODEGAS_REALES[i];
+      if (resp === null) { bodegasConError.push(bodega); return; }
+      listaDe(resp).forEach(r => {
+        const saldo = Number(r.saldo ?? r.stock ?? 0);
+        if (!saldo) return;
+        const k = claveArt(r);
+        if (!k) return;
+        (porBodega[k] ??= {})[bodega] = (porBodega[k][bodega] ?? 0) + saldo;
+      });
+    });
+    if (bodegasConError.length) toast(`No se pudo leer el stock de: ${bodegasConError.join(', ')}`, 'error');
+
+    const redondear = (n) => Math.round(n * 1000) / 1000;
+    const filas = [];
+    totales.forEach(p => {
+      const desglose = porBodega[claveArt(p)] ?? {};
+      const bodegas = Object.keys(desglose);
+      if (bodegas.length === 0) {
+        filas.push({ ...p, bodega: '' });
+        return;
+      }
+      let suma = 0;
+      bodegas.forEach(b => {
+        suma += desglose[b];
+        filas.push({ ...p, saldo: redondear(desglose[b]), bodega: b });
+      });
+      // Si el total de KAME es mayor que la suma de las bodegas conocidas,
+      // la diferencia está en una bodega que no tenemos en la lista.
+      const total = Number(p.saldo ?? p.stock ?? 0);
+      const diferencia = redondear(total - suma);
+      if (diferencia > 0.001) filas.push({ ...p, saldo: diferencia, bodega: 'Otra bodega' });
+    });
+    return filas;
+  }
+
+  async function cargarDatos(bodega) {
+    document.getElementById('cs-tbody').innerHTML = `<tr><td colspan="11" class="loading-state">Cargando stock…</td></tr>`;
+    try {
+      if (!bodega || bodega === 'TODAS') {
+        datos = await cargarTodasConBodega();
+      } else {
+        // getStock no trae desglose por bodega — hay que pedirla aparte,
+        // y como KAME tampoco devuelve el nombre de la bodega en cada
+        // fila, lo agregamos nosotros ya que sabemos cuál pedimos.
+        const resp = await api(`/api/stock/bodega/${encodeURIComponent(bodega)}`);
+        const arr = Array.isArray(resp) ? resp : (resp?.data ?? []);
+        datos = arr.map(r => ({ ...r, bodega }));
+      }
+    } catch (e) {
+      document.getElementById('cs-tbody').innerHTML = `<tr><td colspan="11" class="empty-state">Error: ${e.message}</td></tr>`;
+      datos = [];
+    }
+    filtrarYPintar();
+  }
+
+  try {
+    datos = await cargarTodasConBodega();
+  } catch (e) {
+    document.getElementById('cs-tbody').innerHTML = `<tr><td colspan="11" class="empty-state">Error: ${e.message}</td></tr>`;
+    return;
+  }
+
+  let filtrados = datos;
+
+  function pintar() {
+    const tbody = document.getElementById('cs-tbody');
+    // Total Encontrado = cantidad de productos distintos (no de filas,
+    // porque un producto puede aparecer una vez por cada bodega).
+    document.getElementById('cs-total').value = new Set(filtrados.map(claveArt)).size;
+    tbody.innerHTML = filtrados.length === 0
+      ? `<tr><td colspan="11" class="empty-state">Sin resultados.</td></tr>`
+      : filtrados.slice(0, 300).map((p, i) => `
+        <tr data-idx="${i}" style="cursor:pointer">
+          <td>${p.articulo ?? p.glosa ?? p.nombre ?? p.descripcion ?? ''}</td>
+          <td class="mono">${p.SKU ?? p.codigo ?? p.sku ?? ''}</td>
+          <td>${p.unidad ?? ''}</td>
+          <td class="num mono">${p.saldo ?? p.stock ?? ''}</td>
+          <td>${p.bodega ?? ''}</td>
+          <td class="num mono">${p.minimo ?? p.stockMin ?? ''}</td>
+          <td class="num mono">${p.maximo ?? p.stockMax ?? ''}</td>
+          <td class="num mono">${fmtMoney(p.costoPromedio ?? p.costoCSI ?? p.costo)}</td>
+          <td class="num mono">${fmtMoney(p.precioVentaNeto ?? p.precioLista ?? p.pLista)}</td>
+          <td></td>
+          <td class="num mono"></td>
+        </tr>
+      `).join('');
+
+    tbody.querySelectorAll('tr[data-idx]').forEach(tr => {
+      tr.onclick = () => {
+        const p = filtrados[Number(tr.dataset.idx)];
+        document.getElementById('cs-precio').value = fmtMoney(p.precioVentaNeto ?? p.precioLista ?? p.pLista ?? p.costoPromedio ?? p.costoCSI ?? p.costo);
+        document.getElementById('cs-ultima-fecha').value = fmtDate(p.ultimaFecha ?? p.fecha) || '';
+      };
+    });
+  }
+
+  function filtrarYPintar() {
+    const codigo = document.getElementById('cs-codigo').value.trim().toLowerCase();
+    const glosa = document.getElementById('cs-glosa').value.trim().toLowerCase();
+    filtrados = datos.filter(p =>
+      (!codigo || String(p.SKU ?? p.codigo ?? p.sku ?? '').toLowerCase().includes(codigo)) &&
+      (!glosa || String(p.articulo ?? p.glosa ?? p.nombre ?? '').toLowerCase().includes(glosa))
+    );
+    pintar();
+  }
+
+  document.getElementById('cs-buscar').onclick = () => cargarDatos(document.getElementById('cs-bodega').value);
+  document.getElementById('cs-bodega').addEventListener('change', e => cargarDatos(e.target.value));
+
+  const cs_filtrarEnVivo = debounce(filtrarYPintar, 250);
+  document.getElementById('cs-codigo').addEventListener('input', cs_filtrarEnVivo);
+  document.getElementById('cs-glosa').addEventListener('input', cs_filtrarEnVivo);
+
+  document.getElementById('cs-copiar').onclick = () => {
+    const texto = `Total: ${document.getElementById('cs-total').value} | Precio: ${document.getElementById('cs-precio').value} | Última fecha: ${document.getElementById('cs-ultima-fecha').value}`;
+    navigator.clipboard?.writeText(texto);
+    toast('Copiado al portapapeles');
+  };
+
+  document.getElementById('cs-excel').onclick = () => {
+    if (filtrados.length === 0) { toast('No hay datos para exportar', 'error'); return; }
+    descargarExcel('stock.xlsx', filtrados, [
+      { clave: 'articulo', titulo: 'Glosa' }, { clave: 'SKU', titulo: 'Codigo' }, { clave: 'saldo', titulo: 'Stock' },
+      { clave: 'bodega', titulo: 'Bodega' }, { clave: 'minimo', titulo: 'Minimo' }, { clave: 'maximo', titulo: 'Maximo' },
+    ]);
+  };
+
+  pintar();
+}
+
+function vistaSaldoClientes(main) {
+  main.innerHTML = `
+    <div class="row" style="align-items:stretch">
+      <fieldset style="flex:0.9; display:flex; flex-direction:column">
+        <legend>Detalle cliente</legend>
+        <div class="field-line">
+          <input id="sc-nombre" placeholder="RUT, código o nombre del cliente" style="flex:1">
+          <button class="btn" id="sc-editar" title="Buscar">Buscar</button>
+        </div>
+        <div style="margin-top:6px; font-size:11px; color:var(--ink-soft)">Coincidencias:</div>
+        <div class="listbox" id="sc-coincidencias" style="margin-top:4px; flex:1"><div class="empty"></div></div>
+      </fieldset>
+
+      <fieldset style="flex:1">
+        <legend>Cliente Verificar</legend>
+        <div class="field-line"><label>Codigo Cliente:</label><input id="sc-codigo" readonly></div>
+        <div class="field-line"><label>Rut Cliente:</label><input id="sc-rut" readonly></div>
+        <div class="field-line"><label>Telefono:</label><input id="sc-telefono" readonly></div>
+        <div class="field-line"><label>Direccion:</label><input id="sc-direccion" readonly></div>
+        <div class="field-line"><label>Contacto:</label><input id="sc-contacto" readonly></div>
+        <button class="btn primary" id="sc-buscar" style="width:100%; margin-top:6px">Ver Saldos</button>
+      </fieldset>
+
+      <div style="flex:0.7; display:flex; flex-direction:column; gap:10px">
+        <fieldset>
+          <legend>Orden</legend>
+          <label style="display:flex; align-items:center; gap:6px; margin-bottom:6px; font-size:12px"><input type="radio" name="sc-orden" checked> Numero factura.</label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px"><input type="radio" name="sc-orden"> Fecha Vencimiento.</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Detalles</legend>
+          <div style="font-size:12px; margin-bottom:8px">
+            <div>Saldo total: <b id="sc-saldo-total">$0</b></div>
+            <div>Cantidad Documentos: <b id="sc-cant-doc">0</b></div>
+          </div>
+          <div style="display:flex; gap:6px">
+            <button class="btn" id="sc-exportar-todo" style="flex:1">Exportar todo</button>
+            <button class="btn" id="sc-excel" style="flex:1">Exportar a excel</button>
+          </div>
+        </fieldset>
+      </div>
+
+      <fieldset style="flex:1">
+        <legend>Comentarios</legend>
+        <div class="table-wrap" style="margin-top:0; max-height:170px">
+          <table>
+            <thead><tr><th>Fecha</th><th>Usuario</th><th>Comentario</th></tr></thead>
+            <tbody id="sc-comentarios"><tr><td colspan="3" class="empty-state" style="padding:10px">Sin comentarios.</td></tr></tbody>
+          </table>
+        </div>
+        <div style="display:flex; gap:6px; margin-top:8px">
+          <input id="sc-nuevo-comentario" placeholder="Comentario…" style="flex:1">
+          <button class="btn" id="sc-agregar-comentario">Agregar Comentario</button>
+        </div>
+      </fieldset>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Tipo Documento</th><th>Numero</th><th>Fecha Emision</th><th>Fecha de vencimiento</th>
+          <th style="text-align:right">Total Docto</th><th style="text-align:right">Saldo</th>
+        </tr></thead>
+        <tbody id="sc-tbody"><tr><td colspan="6" class="empty-state">Busca un cliente y presiona Ver Saldos.</td></tr></tbody>
+      </table>
+    </div>
+  `;
+
+  let documentos = [];
+  let rutActual = null;
+
+  document.getElementById('sc-editar').onclick = () => buscarClienteUnificado(document.getElementById('sc-nombre').value.trim(), cargarFicha, 'sc-coincidencias');
+  document.getElementById('sc-nombre').addEventListener('keydown', e => { if (e.key === 'Enter') buscarClienteUnificado(e.target.value.trim(), cargarFicha, 'sc-coincidencias'); });
+  window.__cargarClienteSeleccionado = cargarFicha;
+  const scBuscarEnVivo = debounce(texto => buscarClienteEnVivo(texto, 'sc-coincidencias'), 350);
+  document.getElementById('sc-nombre').addEventListener('input', e => scBuscarEnVivo(e.target.value.trim()));
+
+  async function cargarFicha(rut) {
+    if (!rut) return;
+    try {
+      const { ficha } = await api(`/api/clientes/${encodeURIComponent(rut)}`);
+      const listaF = Array.isArray(ficha) ? ficha : (ficha?.items ?? ficha?.data ?? []);
+      const f = listaF[0];
+      if (!f) { toast(`No se encontró un cliente con RUT ${rut}`, 'error'); return; }
+      rutActual = rut;
+      document.getElementById('sc-codigo').value = f?.Rut ?? f?.codigo ?? rut;
+      document.getElementById('sc-rut').value = f?.Rut ?? f?.rut ?? rut;
+      document.getElementById('sc-telefono').value = f?.Telefono ?? f?.telefono ?? '';
+      document.getElementById('sc-direccion').value = f?.Direccion ?? f?.direccion ?? '';
+      document.getElementById('sc-contacto').value = f?.Contacto ?? f?.contacto ?? '';
+      document.getElementById('sc-coincidencias').innerHTML = `<div class="opt">${f?.RazonSocial ?? f?.nombre ?? rut}</div>`;
+    } catch (e) {
+      toast(`No se encontró el cliente: ${e.message}`, 'error');
+    }
+  }
+
+  async function verSaldos() {
+    if (!rutActual) { toast('Primero busca un cliente', 'error'); return; }
+    const tbody = document.getElementById('sc-tbody');
+    tbody.innerHTML = `<tr><td colspan="6" class="loading-state">Cargando…</td></tr>`;
+    try {
+      const resp = await api(`/api/cobros?fechaVencimientoDesde=2020-01-01&fechaVencimientoHasta=2035-01-01&per_page=300`);
+      documentos = (resp?.items ?? resp?.data ?? []).filter(d => (d.Rut ?? d.rutCliente ?? d.rut ?? '') === rutActual);
+
+      const total = documentos.reduce((s, d) => s + Number(d.Saldo ?? d.saldo ?? 0), 0);
+      document.getElementById('sc-saldo-total').textContent = fmtMoney(total);
+      document.getElementById('sc-cant-doc').textContent = documentos.length;
+
+      tbody.innerHTML = documentos.length === 0
+        ? `<tr><td colspan="6" class="empty-state">Sin documentos pendientes.</td></tr>`
+        : documentos.map(d => `
+          <tr>
+            <td>${d.Documento ?? d.tipoDocumento ?? ''}</td>
+            <td class="mono">${d.FolioDocumento ?? d.numero ?? ''}</td>
+            <td>${fmtDate(d.Fecha ?? d.fechaEmision)}</td>
+            <td>${fmtDate(d.FechaVencimiento ?? d.fechaVencimiento)}</td>
+            <td class="num mono">${fmtMoney(d.Total ?? d.total)}</td>
+            <td class="num mono">${fmtMoney(d.Saldo ?? d.saldo)}</td>
+          </tr>
+        `).join('');
+
+      const { comentarios } = await api(`/api/clientes/${encodeURIComponent(rutActual)}`);
+      pintarComentarios(comentarios);
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Error: ${e.message}</td></tr>`;
+    }
+  }
+
+  function pintarComentarios(lista) {
+    const el = document.getElementById('sc-comentarios');
+    el.innerHTML = (lista || []).length === 0
+      ? `<tr><td colspan="3" class="empty-state" style="padding:10px">Sin comentarios.</td></tr>`
+      : lista.map(c => `<tr><td style="white-space:nowrap; vertical-align:top">${fmtDate(c.fecha)}</td><td style="white-space:nowrap; vertical-align:top">${c.usuario}</td><td class="celda-comentario">${c.comentario}</td></tr>`).join('');
+  }
+
+  document.getElementById('sc-buscar').onclick = verSaldos;
+
+  document.getElementById('sc-agregar-comentario').onclick = async () => {
+    const texto = document.getElementById('sc-nuevo-comentario').value.trim();
+    if (!texto || !rutActual) { toast('Primero busca un cliente', 'error'); return; }
+    if (!state.usuario) { toast('Configura tu nombre de usuario primero', 'error'); abrirModalConfig(); return; }
+    try {
+      await api(`/api/clientes/${encodeURIComponent(rutActual)}/comentarios`, {
+        method: 'POST', body: JSON.stringify({ usuario: state.usuario, comentario: texto }),
+      });
+      document.getElementById('sc-nuevo-comentario').value = '';
+      toast('Comentario agregado');
+      const { comentarios } = await api(`/api/clientes/${encodeURIComponent(rutActual)}`);
+      pintarComentarios(comentarios);
+    } catch (e) { toast(`Error: ${e.message}`, 'error'); }
+  };
+
+  function exportarCSV() {
+    if (documentos.length === 0) { toast('No hay datos para exportar', 'error'); return; }
+    descargarExcel('saldo_clientes.xlsx', documentos, [
+      { clave: 'Documento', titulo: 'Tipo Documento' }, { clave: 'FolioDocumento', titulo: 'Numero' },
+      { clave: 'Fecha', titulo: 'Fecha Emision' }, { clave: 'FechaVencimiento', titulo: 'Fecha Vencimiento' },
+      { clave: 'Total', titulo: 'Total' }, { clave: 'Saldo', titulo: 'Saldo' },
+    ]);
+  }
+  document.getElementById('sc-excel').onclick = exportarCSV;
+  document.getElementById('sc-exportar-todo').onclick = exportarCSV;
+}
+
+async function vistaFacturasVencidas(main) {
+  main.innerHTML = `
+    <div class="row">
+      <fieldset style="flex:0.6; display:flex; align-items:center; justify-content:center">
+        <button class="btn primary" id="fv-ver-saldos" style="width:100%">Ver Saldos</button>
+      </fieldset>
+      <fieldset style="flex:1.4">
+        <legend>Detalle</legend>
+        <div style="display:flex; gap:24px; font-size:12px">
+          <div>N° Clientes: <b id="fv-clientes">0</b></div>
+          <div>N° Documentos: <b id="fv-documentos">0</b></div>
+          <div>Revisados: <b id="fv-revisados">0</b></div>
+        </div>
+      </fieldset>
+      <fieldset style="flex:0.6; display:flex; align-items:center; justify-content:center">
+        <button class="btn" id="fv-exportar" style="width:100%">Exportar</button>
+      </fieldset>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Cliente</th><th>Tipo Documento</th><th>Numero</th><th>Fecha Emision</th><th>Fecha de vencimiento</th>
+          <th style="text-align:right">Total Docto</th><th style="text-align:right">Saldo</th><th>Estado</th>
+        </tr></thead>
+        <tbody id="fv-tbody"><tr><td colspan="8" class="loading-state">Presiona Ver Saldos</td></tr></tbody>
+      </table>
+    </div>
+  `;
+
+  let filas = [];
+
+  async function cargar() {
+    const tbody = document.getElementById('fv-tbody');
+    tbody.innerHTML = `<tr><td colspan="8" class="loading-state">Cargando…</td></tr>`;
+    try {
+      const hoyStr = hoy();
+      const resp = await api(`/api/cobros?fechaVencimientoDesde=2020-01-01&fechaVencimientoHasta=${hoyStr}&per_page=300`);
+      filas = (resp?.items ?? resp?.data ?? []).filter(d => new Date(d.FechaVencimiento ?? d.fechaVencimiento) < new Date());
+      document.getElementById('fv-clientes').textContent = new Set(filas.map(f => f.Rut ?? f.rutCliente ?? f.cliente)).size;
+      document.getElementById('fv-documentos').textContent = filas.length;
+      document.getElementById('fv-revisados').textContent = filas.filter(f => f.revisado).length;
+      pintar();
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Error: ${e.message}</td></tr>`;
+    }
+  }
+
+  function pintar() {
+    const tbody = document.getElementById('fv-tbody');
+    tbody.innerHTML = filas.length === 0
+      ? `<tr><td colspan="8" class="empty-state">No hay facturas vencidas.</td></tr>`
+      : filas.map((d, i) => `
+        <tr>
+          <td>${d.RznSocial ?? d.cliente ?? d.nombreCliente ?? ''}</td>
+          <td>${d.Documento ?? d.tipoDocumento ?? ''}</td>
+          <td class="mono">${d.FolioDocumento ?? d.numero ?? ''}</td>
+          <td>${fmtDate(d.Fecha ?? d.fechaEmision)}</td>
+          <td>${fmtDate(d.FechaVencimiento ?? d.fechaVencimiento)}</td>
+          <td class="num mono">${fmtMoney(d.Total ?? d.total)}</td>
+          <td class="num mono">${fmtMoney(d.Saldo ?? d.saldo)}</td>
+          <td>${d.revisado ? `<span class="badge ok">Revisado</span>` : `<button class="btn" data-idx="${i}" style="padding:3px 8px; font-size:11px">Marcar</button>`}</td>
+        </tr>
+      `).join('');
+
+    tbody.querySelectorAll('button[data-idx]').forEach(btn => {
+      btn.onclick = async () => {
+        if (!state.usuario) { toast('Configura tu nombre de usuario primero', 'error'); abrirModalConfig(); return; }
+        const fila = filas[Number(btn.dataset.idx)];
+        try {
+          await api(`/api/cobros/${encodeURIComponent(`${fila.Documento ?? ''}-${fila.FolioDocumento ?? fila.numero ?? ''}`)}/revisado`, { method: 'POST', body: JSON.stringify({ usuario: state.usuario }) });
+          fila.revisado = true;
+          document.getElementById('fv-revisados').textContent = filas.filter(f => f.revisado).length;
+          pintar();
+        } catch (e) { toast(`Error: ${e.message}`, 'error'); }
+      };
+    });
+  }
+
+  document.getElementById('fv-ver-saldos').onclick = cargar;
+  document.getElementById('fv-exportar').onclick = () => {
+    if (filas.length === 0) { toast('No hay datos para exportar', 'error'); return; }
+    descargarExcel('facturas_vencidas.xlsx', filas, [
+      { clave: 'RznSocial', titulo: 'Cliente' }, { clave: 'Documento', titulo: 'Tipo Documento' },
+      { clave: 'FolioDocumento', titulo: 'Numero' }, { clave: 'FechaVencimiento', titulo: 'Fecha Vencimiento' }, { clave: 'Saldo', titulo: 'Saldo' },
+    ]);
+  };
+}
+
+function abrirModalConfig() {
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <h3>Configuración de conexión</h3>
+        <p class="modal-sub">Dirección del backend y tu nombre, para dejar registro de quién hace cada cambio.</p>
+        <div class="field-line" style="margin-bottom:10px"><label style="min-width:70px">URL:</label><input id="cfg-api" value="${state.apiBase}" style="flex:1" placeholder="https://tu-proyecto.up.railway.app"></div>
+        <div class="field-line"><label style="min-width:70px">Usuario:</label><input id="cfg-usuario" value="${state.usuario}" style="flex:1" placeholder="ana@tuempresa.cl"></div>
+        <div class="modal-actions">
+          <button class="btn" id="cfg-cancelar">Cancelar</button>
+          <button class="btn primary" id="cfg-guardar">Guardar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('cfg-cancelar').onclick = () => { root.innerHTML = ''; };
+  document.getElementById('cfg-guardar').onclick = () => {
+    const apiBase = document.getElementById('cfg-api').value.trim().replace(/\/$/, '');
+    const usuario = document.getElementById('cfg-usuario').value.trim();
+    guardarConfig(apiBase, usuario);
+    root.innerHTML = '';
+    renderMain();
+  };
+}
+
+let graficoVentasActual = null;
+
+async function abrirModalProveedores(sku, nombreProducto, onCerrar) {
+  const root = document.getElementById('modal-root');
+
+  async function render() {
+    let lista = [];
+    let errorCarga = null;
+    try {
+      lista = await api(`/api/proveedores/${encodeURIComponent(sku)}`);
+    } catch (e) {
+      errorCarga = e.message;
+    }
+
+    const preferido = lista.find(p => p.activo) ?? lista[0];
+
+    root.innerHTML = `
+      <div class="modal-backdrop">
+        <div class="modal" style="width:680px; max-width:95vw">
+          <h3>Actualizar Código Proveedor</h3>
+          <p class="modal-sub">Registro propio del dashboard — no se sincroniza con KAME (confirmado que no lo maneja a nivel de ERP)</p>
+
+          <div class="row" style="margin-bottom:10px">
+            <fieldset>
+              <legend>Descripción de Producto Interno</legend>
+              <div class="kv-compact"><label>Código:</label><span class="val">${sku}</span></div>
+              <div class="kv-compact"><label>Descripción:</label><span class="val">${nombreProducto}</span></div>
+            </fieldset>
+            <fieldset>
+              <legend>Proveedor Actual</legend>
+              <div class="kv-compact"><label>Proveedor:</label><span class="val">${preferido?.proveedor ?? '—'}</span></div>
+            </fieldset>
+          </div>
+
+          <fieldset style="margin-bottom:10px">
+            <legend>Proveedores Disponibles</legend>
+            <div class="table-wrap" style="margin-top:0; max-height:160px">
+              <table>
+                <thead><tr>
+                  <th>Proveedor</th><th>Codigo Proveedor</th><th style="text-align:right">Precio</th><th>Moneda</th>
+                  <th>Activo</th><th style="text-align:right">Cant M.</th><th>Plazo E.</th><th>F.Act</th><th>Id</th>
+                </tr></thead>
+                <tbody>
+                  ${errorCarga
+                    ? `<tr><td colspan="9" class="empty-state" style="color:var(--warn)">Error al conectar con el backend: ${errorCarga}. Revisa que el backend tenga desplegado el endpoint /api/proveedores.</td></tr>`
+                    : lista.length === 0
+                    ? `<tr><td colspan="9" class="empty-state">Sin proveedores registrados todavía.</td></tr>`
+                    : lista.map(p => `
+                      <tr data-id="${p.id}" style="cursor:pointer" class="fila-proveedor">
+                        <td>${p.proveedor}</td>
+                        <td class="mono">${p.codigo_proveedor ?? ''}</td>
+                        <td class="num mono">${p.precio ?? ''}</td>
+                        <td class="mono">${p.moneda ?? 'CLP'}</td>
+                        <td>${p.activo ? 'SI' : 'NO'}</td>
+                        <td class="num mono">${p.cantidad_minima ?? ''}</td>
+                        <td>${p.plazo_entrega ?? ''}</td>
+                        <td class="mono">${fmtDate(p.fecha_actualizacion)}</td>
+                        <td class="mono">${p.id}</td>
+                      </tr>
+                    `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </fieldset>
+
+          <div class="row" style="margin-bottom:10px">
+            <fieldset>
+              <legend>Actualizar</legend>
+              <div class="field-stack"><label>Proveedor seleccionado</label>
+                <select id="prov-select-actualizar">
+                  <option value="">— Elige uno de la lista de arriba —</option>
+                  ${lista.map(p => `<option value="${p.id}">${p.proveedor} (${p.codigo_proveedor ?? 's/c'})</option>`).join('')}
+                </select>
+              </div>
+              <div class="row" style="margin:8px 0 0">
+                <div class="field-stack" style="flex:1.4"><label>Precio</label><input id="prov-upd-precio" type="number"></div>
+                <div class="field-stack"><label>Moneda</label>
+                  <select id="prov-upd-moneda"><option value="CLP">CLP</option><option value="USD">USD</option><option value="EUR">EUR</option></select>
+                </div>
+              </div>
+              <div class="row" style="margin:8px 0 0">
+                <div class="field-stack"><label>Activo</label>
+                  <select id="prov-upd-activo"><option value="1">SI</option><option value="0">NO</option></select>
+                </div>
+                <div class="field-stack"><label>Cant. Mínima</label><input id="prov-upd-cantmin" type="number"></div>
+              </div>
+              <div class="field-stack" style="margin-top:8px"><label>Plazo Entrega</label><input id="prov-upd-plazo" placeholder="ej: 5 días"></div>
+              <button class="btn primary" id="prov-btn-actualizar" style="width:100%; margin-top:8px">Actualizar</button>
+            </fieldset>
+
+            <fieldset>
+              <legend>Agregar Proveedor</legend>
+              <div class="field-stack"><label>Proveedor</label><input id="prov-add-nombre" placeholder="Nombre del proveedor"></div>
+              <div class="field-stack" style="margin-top:8px"><label>Código Proveedor</label><input id="prov-add-codigo"></div>
+              <div class="row" style="margin:8px 0 0">
+                <div class="field-stack" style="flex:1.4"><label>Precio</label><input id="prov-add-precio" type="number"></div>
+                <div class="field-stack"><label>Moneda</label>
+                  <select id="prov-add-moneda"><option value="CLP">CLP</option><option value="USD">USD</option><option value="EUR">EUR</option></select>
+                </div>
+              </div>
+              <div class="field-stack" style="margin-top:8px"><label>kg/m</label><input id="prov-add-kgm" type="number" step="0.01"></div>
+              <button class="btn primary" id="prov-btn-agregar" style="width:100%; margin-top:8px">Agregar</button>
+            </fieldset>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn" id="prov-cerrar">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Al hacer clic en una fila, precarga sus datos en "Actualizar"
+    root.querySelectorAll('.fila-proveedor').forEach(fila => {
+      fila.onclick = () => {
+        const id = fila.dataset.id;
+        const p = lista.find(x => String(x.id) === id);
+        document.getElementById('prov-select-actualizar').value = id;
+        document.getElementById('prov-upd-precio').value = p.precio ?? '';
+        document.getElementById('prov-upd-moneda').value = p.moneda ?? 'CLP';
+        document.getElementById('prov-upd-activo').value = p.activo ? '1' : '0';
+        document.getElementById('prov-upd-cantmin').value = p.cantidad_minima ?? '';
+        document.getElementById('prov-upd-plazo').value = p.plazo_entrega ?? '';
+      };
+    });
+
+    document.getElementById('prov-select-actualizar').onchange = (e) => {
+      const p = lista.find(x => String(x.id) === e.target.value);
+      document.getElementById('prov-upd-precio').value = p?.precio ?? '';
+      document.getElementById('prov-upd-moneda').value = p?.moneda ?? 'CLP';
+      document.getElementById('prov-upd-activo').value = p?.activo ? '1' : '0';
+      document.getElementById('prov-upd-cantmin').value = p?.cantidad_minima ?? '';
+      document.getElementById('prov-upd-plazo').value = p?.plazo_entrega ?? '';
+    };
+
+    document.getElementById('prov-btn-actualizar').onclick = async () => {
+      const id = document.getElementById('prov-select-actualizar').value;
+      if (!id) { toast('Selecciona un proveedor de la lista primero', 'error'); return; }
+      if (!state.usuario) { toast('Configura tu nombre de usuario primero', 'error'); abrirModalConfig(); return; }
+      try {
+        await api(`/api/proveedores/${encodeURIComponent(sku)}/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            precio: Number(document.getElementById('prov-upd-precio').value) || null,
+            moneda: document.getElementById('prov-upd-moneda').value,
+            cantidadMinima: Number(document.getElementById('prov-upd-cantmin').value) || null,
+            plazoEntrega: document.getElementById('prov-upd-plazo').value || null,
+            activo: document.getElementById('prov-upd-activo').value === '1',
+            usuario: state.usuario,
+          }),
+        });
+        toast('Proveedor actualizado');
+        await render();
+        if (onCerrar) await onCerrar();
+      } catch (e) { toast(`Error: ${e.message}`, 'error'); }
+    };
+
+    document.getElementById('prov-btn-agregar').onclick = async () => {
+      const nombre = document.getElementById('prov-add-nombre').value.trim();
+      if (!nombre) { toast('Escribe el nombre del proveedor', 'error'); return; }
+      if (!state.usuario) { toast('Configura tu nombre de usuario primero', 'error'); abrirModalConfig(); return; }
+      try {
+        await api(`/api/proveedores/${encodeURIComponent(sku)}`, {
+          method: 'POST',
+          body: JSON.stringify({
+            proveedor: nombre,
+            moneda: document.getElementById('prov-add-moneda').value,
+            codigoProveedor: document.getElementById('prov-add-codigo').value || null,
+            precio: Number(document.getElementById('prov-add-precio').value) || null,
+            kgM: Number(document.getElementById('prov-add-kgm').value) || null,
+            usuario: state.usuario,
+          }),
+        });
+        toast('Proveedor agregado');
+        await render();
+        if (onCerrar) await onCerrar();
+      } catch (e) { toast(`Error: ${e.message}`, 'error'); }
+    };
+
+    document.getElementById('prov-cerrar').onclick = () => { root.innerHTML = ''; };
+  }
+
+  await render();
+}
+
+function abrirModalConsolidado(nombreProducto, sku, cantidadPorAno) {
+  const anos = Object.keys(cantidadPorAno).sort();
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `
+    <div class="modal-backdrop">
+      <div class="modal" style="width:560px">
+        <h3>Consolidado Ventas, Consumo y Kits</h3>
+        <p class="modal-sub">Código Producto: ${sku} — ${nombreProducto} · Bodega: TODAS</p>
+        <div class="table-wrap" style="margin-top:0">
+          <table>
+            <thead><tr>
+              <th>Año</th><th style="text-align:right">Ventas</th><th style="text-align:right">Cons Ventas</th>
+              <th style="text-align:right">Cons Ajuste</th><th style="text-align:right">Kit</th><th style="text-align:right">Total</th>
+            </tr></thead>
+            <tbody>
+              ${anos.map(a => `
+                <tr>
+                  <td>${a}</td>
+                  <td class="num mono">${cantidadPorAno[a]}</td>
+                  <td class="num mono" style="color:var(--ink-faint)" title="Pendiente del kardex — KAME, enero 2027">—</td>
+                  <td class="num mono" style="color:var(--ink-faint)" title="Pendiente del kardex — KAME, enero 2027">—</td>
+                  <td class="num mono" style="color:var(--ink-faint)" title="Pendiente del kardex — KAME, enero 2027">—</td>
+                  <td class="num mono" style="color:var(--ink-faint)" title="Total real pendiente del kardex — por ahora solo ventas">—</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="pending-panel" style="margin-top:10px; padding:10px 14px; font-size:11.5px">
+          "Ventas" es la cantidad de unidades vendidas ese año (dato real). "Cons Ventas", "Cons Ajuste", "Kit" y el "Total"
+          combinado dependen del historial de movimientos de inventario, que KAME confirmó para su roadmap de enero 2027.
+        </div>
+        <div class="modal-actions">
+          <button class="btn" id="consolidado-cerrar">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('consolidado-cerrar').onclick = () => { root.innerHTML = ''; };
+}
+
+function abrirModalGrafico(nombreCliente, ventas) {
+  if (ventas.length === 0) {
+    const root = document.getElementById('modal-root');
+    root.innerHTML = `
+      <div class="modal-backdrop">
+        <div class="modal">
+          <h3>Ventas por mes — ${nombreCliente}</h3>
+          <p class="modal-sub">Sin ventas registradas para este cliente.</p>
+          <div class="modal-actions"><button class="btn" id="grafico-cerrar">Cerrar</button></div>
+        </div>
+      </div>
+    `;
+    document.getElementById('grafico-cerrar').onclick = () => { root.innerHTML = ''; };
+    return;
+  }
+
+  // Buscamos la fecha más antigua entre las ventas encontradas, y armamos
+  // todos los meses desde ahí hasta el mes actual (sin límite fijo).
+  const fechas = ventas
+    .map(v => v.Fecha ?? v.fecha ?? v.fechaEmision)
+    .filter(Boolean)
+    .map(f => new Date(f));
+  const masAntigua = new Date(Math.min(...fechas));
+  const hoyDate = new Date();
+
+  const meses = [];
+  let cursor = new Date(masAntigua.getFullYear(), masAntigua.getMonth(), 1);
+  const fin = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), 1);
+  while (cursor <= fin) {
+    meses.push({
+      clave: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`,
+      etiqueta: cursor.toLocaleDateString('es-CL', { month: 'short', year: '2-digit' }),
+    });
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+
+  const totalesPorMes = Object.fromEntries(meses.map(m => [m.clave, 0]));
+  ventas.forEach(v => {
+    const fecha = v.Fecha ?? v.fecha ?? v.fechaEmision;
+    if (!fecha) return;
+    const clave = String(fecha).slice(0, 7);
+    if (clave in totalesPorMes) totalesPorMes[clave] += Number(v.Total ?? v.total ?? 0);
+  });
+
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `
+    <div class="modal-backdrop">
+      <div class="modal" style="width:640px">
+        <h3>Ventas por mes — ${nombreCliente}</h3>
+        <p class="modal-sub">${meses[0].etiqueta} — ${meses[meses.length - 1].etiqueta} (todo el historial encontrado)</p>
+        <canvas id="grafico-ventas-canvas" height="260"></canvas>
+        <div class="modal-actions">
+          <button class="btn" id="grafico-cerrar">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('grafico-cerrar').onclick = () => {
+    if (graficoVentasActual) { graficoVentasActual.destroy(); graficoVentasActual = null; }
+    root.innerHTML = '';
+  };
+
+  const ctx = document.getElementById('grafico-ventas-canvas').getContext('2d');
+  if (graficoVentasActual) graficoVentasActual.destroy();
+  graficoVentasActual = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: meses.map(m => m.etiqueta),
+      datasets: [{
+        label: 'Total ventas',
+        data: meses.map(m => totalesPorMes[m.clave]),
+        backgroundColor: '#F5C842',
+        borderColor: '#C99A1E',
+        borderWidth: 1,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { callback: v => fmtMoney(v) } },
+      },
+    },
+  });
+}
+
+function abrirModalConfirmarCambios(producto, cambios, etiquetas, onConfirmar) {
+  const valoresActuales = {
+    nombre: producto.Descripcion ?? producto.descripcion,
+    precioLista: producto.PrecioVentaNeto ?? producto.precioVentaNeto,
+    stockMin: producto.StockMin ?? producto.stockMin,
+    stockMax: producto.StockMax ?? producto.stockMax,
+  };
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <h3>Confirmar cambios</h3>
+        <p class="modal-sub">Esto se escribe directo en KAME. Revisa antes de confirmar.</p>
+        ${Object.entries(cambios).map(([campo, nuevo]) => `
+          <div class="diff-row">
+            <span>${etiquetas[campo]}</span>
+            <span><span class="diff-old">${valoresActuales[campo] ?? '—'}</span> → <span class="diff-new">${nuevo}</span></span>
+          </div>
+        `).join('')}
+        <div class="modal-actions">
+          <button class="btn" id="confirmar-cancelar">Cancelar</button>
+          <button class="btn primary" id="confirmar-ok">Confirmar y guardar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('confirmar-cancelar').onclick = () => { root.innerHTML = ''; };
+  document.getElementById('confirmar-ok').onclick = () => { root.innerHTML = ''; onConfirmar(); };
+}
+
+// Detecta si el texto escrito parece un RUT (ej: 11.111.111-1 o 1-9)
+// en vez de un nombre.
+function pareceRut(texto) {
+  return /^[0-9.]+-[0-9kK]$/.test(texto.trim());
+}
+
+// Espera a que la persona deje de escribir antes de disparar la búsqueda,
+// para no mandar una petición por cada letra tipeada.
+function debounce(fn, esperaMs) {
+  let temporizador;
+  return (...args) => {
+    clearTimeout(temporizador);
+    temporizador = setTimeout(() => fn(...args), esperaMs);
+  };
+}
+
+// Búsqueda por nombre "en vivo": se llama mientras la persona escribe.
+// No muestra errores ruidosos (silenciosa), solo actualiza las coincidencias.
+async function buscarClienteEnVivo(texto, idCoincidencias) {
+  const box = document.getElementById(idCoincidencias);
+  if (!texto || texto.length < 2 || pareceRut(texto)) return;
+
+  try {
+    const resp = await api(`/api/clientes/buscar?nombre=${encodeURIComponent(texto)}`);
+    const coincidencias = resp.coincidencias || [];
+    if (coincidencias.length === 0) {
+      box.innerHTML = `<div class="empty">Sin coincidencias todavía…</div>`;
+      return;
+    }
+    box.innerHTML = coincidencias
+      .map((c) => `<div class="opt" data-rut="${c.rut}">${c.nombre} — ${c.rut}</div>`)
+      .join('');
+    box.querySelectorAll('.opt[data-rut]').forEach((el) => {
+      el.onclick = () => window.__cargarClienteSeleccionado?.(el.dataset.rut);
+    });
+  } catch {
+    // Silencioso: mientras se escribe no queremos toasts de error
+  }
+}
+
+// Búsqueda unificada: si parece RUT, carga la ficha directo. Si no,
+// busca por nombre entre los clientes con documentos recientes y
+// muestra las coincidencias para elegir.
+async function buscarClienteUnificado(texto, cargarPorRut, idCoincidencias) {
+  if (!texto) return;
+  const box = document.getElementById(idCoincidencias);
+
+  if (pareceRut(texto)) {
+    await cargarPorRut(texto);
+    return;
+  }
+
+  box.innerHTML = `<div class="empty">Buscando…</div>`;
+  try {
+    const resp = await api(`/api/clientes/buscar?nombre=${encodeURIComponent(texto)}`);
+    const coincidencias = resp.coincidencias || [];
+    if (coincidencias.length === 0) {
+      box.innerHTML = `<div class="empty">Sin coincidencias (solo busca entre clientes con documentos en los últimos 2 años)</div>`;
+      return;
+    }
+    box.innerHTML = coincidencias
+      .map((c) => `<div class="opt" data-rut="${c.rut}">${c.nombre} — ${c.rut}</div>`)
+      .join('');
+    box.querySelectorAll('.opt[data-rut]').forEach((el) => {
+      el.onclick = () => cargarPorRut(el.dataset.rut);
+    });
+  } catch (e) {
+    toast(`Error al buscar: ${e.message}`, 'error');
+  }
+}
+
+function hoy() { return new Date().toISOString().slice(0, 10); }
+function hace30(dias = 30) { return new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10); }
+
+// Los <input type="date"> muestran el formato según el idioma del navegador
+// (a veces mes/día/año). Esta función arma una etiqueta al lado que siempre
+// se lee día-mes-año, sin importar cómo lo muestre el navegador.
+function actualizarFechaLegible(inputId, labelId) {
+  const input = document.getElementById(inputId);
+  const label = document.getElementById(labelId);
+  if (!input || !label) return;
+  const pintar = () => {
+    if (!input.value) { label.textContent = ''; return; }
+    const [a, m, d] = input.value.split('-');
+    label.textContent = `(${d}-${m}-${a})`;
+  };
+  pintar();
+  input.addEventListener('input', pintar);
+  input.addEventListener('change', pintar);
+}
+
+renderTabs();
+renderMain();
+</script>
+</body>
+</html>

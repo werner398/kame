@@ -86,3 +86,10 @@ npm start
 ```
 
 Luego abre `http://localhost:3000/health` para confirmar que responde.
+
+## Frontend (dashboard)
+
+El dashboard es un único archivo: `web/index.html`. Netlify lo publica
+automáticamente desde la carpeta `web/` (ver `netlify.toml`) cada vez
+que hay un cambio en esa carpeta en la rama `main`. El backend (los
+archivos `.js` de la raíz) lo sigue desplegando Railway.
