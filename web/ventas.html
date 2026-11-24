@@ -264,9 +264,9 @@
     </div>
 
     <div class="bloque">
-      <p class="etiqueta">Comentario (opcional)</p>
+      <p class="etiqueta">Observaciones (opcional)</p>
       <textarea id="comentario" class="campo" rows="2" placeholder="Ej: Cliente retira"></textarea>
-      <div class="chico">Se puede cambiar en cualquier momento antes de crear el documento.</div>
+      <div class="chico">Queda en Observaciones del documento en KAME. La OC y la condición de venta van en la Glosa.</div>
     </div>
 
     <div id="emitirMsg"></div>
@@ -304,7 +304,7 @@
       <div class="linea"><label>Adjuntar OC</label><div>
         <input id="archivoOC" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" class="campo" style="padding:8px">
         <div class="chico" id="archivoOCInfo">PDF o imagen, máximo 10 MB. Se guarda junto al documento al crearlo.</div></div></div>
-      <div class="linea"><label>Comentarios</label><textarea id="comentarioModal" class="campo" rows="4" placeholder="Comentarios sobre este documento…"></textarea></div>
+      <div class="linea"><label>Observaciones</label><textarea id="comentarioModal" class="campo" rows="4" placeholder="Comentarios sobre este documento…"></textarea></div>
       <div class="acciones" style="margin-top:8px">
         <button class="btn rojo" id="btnCancelarDatos">Cancelar</button>
         <button class="btn primario" id="btnGuardarDatos">✓ Guardar</button>
@@ -851,7 +851,8 @@ function cuerpoDocumento(enviar) {
     pagos: doc.pagos.map((p) => ({ codigo: p.codigo, nombre: forma(p.codigo).nombre, credito: forma(p.codigo).credito, dias: p.dias, monto: p.monto })),
     diasVigencia: Number($('diasVigencia').value || 15),
     cotizacionOrigen: doc.tipo === 'pedido' ? doc.cotizacionOrigen : null,
-    comentario: [doc.nroOC && `OC N° ${doc.nroOC}${doc.fechaOC ? ' del ' + doc.fechaOC.split('-').reverse().join('-') : ''}`, $('comentario').value.trim()].filter(Boolean).join('. '),
+    referenciaOC: doc.nroOC ? `OC N° ${doc.nroOC}${doc.fechaOC ? ' del ' + doc.fechaOC.split('-').reverse().join('-') : ''}` : '',
+    comentario: $('comentario').value.trim(),
     emitidoPor: sesion.vendedor,
     items: doc.lineas.filter((l) => l.sku && l.cantidad > 0).map((l) => ({ articulo: l.sku, descripcion: l.nombre, cantidad: l.cantidad, precioUnitario: l.precio, descuentoPct: l.dcto })),
     enviar,

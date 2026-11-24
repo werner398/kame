@@ -208,11 +208,19 @@ async function construirBase(input, resolvers, tipo) {
       .map((p, i) => `${p.nombre || "condición " + (i + 1)} ${pesosCL(cuotasKame ? cuotasKame[i]?.MontoPago ?? p.monto : p.monto)}`)
       .join(" + ");
   }
-  const comentarioFinal = [
+  // En KAME, "Comentario" queda en la GLOSA (máx. 250 caracteres): ahí va lo
+  // corto para identificar el documento (OC, cotización de origen, condición).
+  // El comentario del vendedor va en OBSERVACIONES (hasta 6.000 caracteres).
+  // El nombre del campo de Observaciones no está documentado: se envía con los
+  // dos nombres probables (KAME ignora los campos que no conoce).
+  const glosa = [
+    input.referenciaOC,
     input.cotizacionOrigen && `Según cotización N° ${input.cotizacionOrigen}`,
     textoCondicion,
-    comentario,
   ].filter(Boolean).join(". ");
+  const observaciones = String(comentario || "").slice(0, 6000);
+  const recortar = (t, max) => (t.length > max ? t.slice(0, max - 1) + "…" : t);
+  const comentarioFinal = recortar(glosa || observaciones, 250);
 
   return {
     Usuario: usuario,
@@ -230,6 +238,8 @@ async function construirBase(input, resolvers, tipo) {
     Email: ficha.Email || "",
     Fecha: `${fecha}T00:00:00`,
     Comentario: comentarioFinal,
+    Observaciones: observaciones,
+    Observacion: observaciones,
     FormaPago: formaPagoFinal,
     ...totales,
     Bodega: bodega,
