@@ -226,7 +226,11 @@ $('btnEntrar').onclick = async () => {
     if (!r.ok) { sesion = null; $('estadoConexion').textContent = 'Clave de administrador incorrecta.'; return; }
   } else {
     const r = await api('/api/vendedores/entrar', { method: 'POST', body: JSON.stringify({ vendedor, clave }) });
-    if (!r.ok) { $('estadoConexion').textContent = r.cuerpo?.error || ('Error ' + r.status); return; }
+    if (!r.ok) {
+      $('estadoConexion').textContent = (r.cuerpo?.error || ('Error ' + r.status)) +
+        (r.status === 401 ? ' Si eres administrador, marca la casilla "Clave de administrador" y usa la clave maestra.' : '');
+      return;
+    }
     sesion = { rol: 'vendedor', vendedor: r.cuerpo.vendedor, token: r.cuerpo.token };
   }
   $('clave').value = '';
