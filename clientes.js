@@ -111,6 +111,68 @@ function normalizarFicha(f) {
   };
 }
 
+// ---------- Saldo pendiente de un cliente ----------
+// Recorre TODAS las páginas de cuentas por cobrar (getCuentaxCobrar) y filtra
+// por RUT. Se cachea 5 minutos para no gastar cuota de KAME en cada consulta.
+let cacheCxC = { filas: null, en: 0 };
+const normRut = (r) => String(r || "").replace(/\./g, "").trim().toUpperCase();
+
+async function cuentasPorCobrar() {
+  if (cacheCxC.filas && Date.now() - cacheCxC.en < 5 * 60 * 1000) return cacheCxC.filas;
+  const ahora = Date.now();
+  const desde = iso(ahora - 3650 * 86400000), hasta = iso(ahora + 1095 * 86400000);
+  const todas = [];
+  for (let pagina = 1; pagina <= 30; pagina++) {
+    const filas = filasDe(await llamarKame(
+      `/Contabilidad/getCuentaxCobrar?page=${pagina}&per_page=500&fechaVencimientoDesde=${desde}&fechaVencimientoHasta=${hasta}`
+    ));
+    todas.push(...filas);
+    if (filas.length < 500) break;
+  }
+  cacheCxC = { filas: todas, en: Date.now() };
+  return todas;
+}
+
+// GET /api/clientes/:rut/saldo — documentos pendientes de pago, total, vencido y por vencer
+router.get("/:rut/saldo", async (req, res) => {
+  try {
+    if (req.query.refrescar === "1") cacheCxC.en = 0;
+    const rut = normRut(req.params.rut);
+    const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
+    const documentos = (await cuentasPorCobrar())
+      .filter((d) => normRut(d.Rut ?? d.rutCliente ?? d.rut) === rut)
+      .map((d) => {
+        const vence = String(d.FechaVencimiento ?? d.fechaVencimiento ?? "").slice(0, 10);
+        const saldo = Number(d.Saldo ?? d.saldo ?? 0);
+        const diasVencido = vence && vence < hoy ? Math.round((new Date(hoy) - new Date(vence)) / 86400000) : 0;
+        return {
+          documento: d.Documento ?? d.tipoDocumento ?? "",
+          folio: d.FolioDocumento ?? d.numero ?? "",
+          emision: String(d.Fecha ?? d.fechaEmision ?? "").slice(0, 10),
+          vencimiento: vence,
+          total: Number(d.Total ?? d.total ?? 0),
+          saldo,
+          diasVencido,
+        };
+      })
+      .filter((d) => d.saldo !== 0)
+      .sort((a, b) => String(a.vencimiento).localeCompare(String(b.vencimiento)));
+    const suma = (lista) => lista.reduce((a, d) => a + d.saldo, 0);
+    const vencidos = documentos.filter((d) => d.diasVencido > 0);
+    res.json({
+      rut: req.params.rut,
+      documentos,
+      saldoTotal: suma(documentos),
+      saldoVencido: suma(vencidos),
+      documentosVencidos: vencidos.length,
+      saldoPorVencer: suma(documentos) - suma(vencidos),
+      actualizadoEn: new Date(cacheCxC.en).toISOString(),
+    });
+  } catch (error) {
+    res.status(502).json({ error: error.message, detalle: error.detalle });
+  }
+});
+
 // GET /api/clientes/fuentes — diagnóstico: cuántos clientes aporta cada fuente
 router.get("/fuentes", async (req, res) => {
   if (req.query.refrescar === "1") cacheClientes.actualizadoEn = 0;

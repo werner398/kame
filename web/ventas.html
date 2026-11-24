@@ -74,6 +74,15 @@
   .num { text-align:right; white-space:nowrap; }
   .quitar { border:0; background:none; color:var(--gris); font-size:18px; cursor:pointer; }
   .quitar:hover { color:var(--err); }
+  .chip-saldo { display:inline-flex; gap:6px; align-items:center; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600;
+                background:var(--fondo); border:1px solid var(--linea); color:var(--texto); cursor:pointer; }
+  .chip-saldo.deuda { background:#fff8e6; border-color:#f0d9a0; color:#6b4a00; }
+  .chip-saldo.vencido { background:#fdecea; border-color:#f3c0bb; color:#7a1a12; }
+  .chip-saldo:hover { filter:brightness(.97); }
+  .tarjetas-saldo { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:14px; }
+  .tarjetas-saldo div { border:1px solid var(--linea); border-radius:8px; padding:10px 12px; }
+  .tarjetas-saldo b { display:block; font-size:18px; margin-top:4px; }
+  tr.vencido td { color:var(--err); }
   .oc-link { cursor:pointer; color:var(--azul); font-weight:600; text-decoration:underline; text-underline-offset:2px; }
   .oc-link:hover { color:var(--azul-osc); }
   .stock-bajo { color:var(--err); font-weight:600; }
@@ -201,7 +210,7 @@
     </div>
     <div id="clienteElegido" class="bloque" hidden>
       <div class="tarjeta">
-        <div><b id="cliNombre"></b><div class="chico" id="cliDetalle"></div></div>
+        <div><b id="cliNombre"></b><div class="chico" id="cliDetalle"></div><div style="margin-top:8px"><span class="chip-saldo" id="chipSaldo1" hidden></span></div></div>
         <button class="enlace" id="btnCambiarCliente">Cambiar</button>
       </div>
     </div>
@@ -226,7 +235,10 @@
     <div class="cab">
       <div><div class="k">Documento <span class="badge">NUEVO</span></div><div class="tipo" id="cabTipo"></div></div>
       <div><div class="k">Cliente</div><div class="cli"><span id="cabRut"></span> <span style="color:var(--linea)">|</span> <span id="cabNombre"></span></div></div>
-      <button class="enlace" id="btnVolverPaso1" style="margin-left:auto">✎ Cambiar</button>
+      <div style="margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:8px">
+        <button class="enlace" id="btnVolverPaso1">✎ Cambiar</button>
+        <span class="chip-saldo" id="chipSaldo2" title="Ver saldo del cliente">Saldo del cliente…</span>
+      </div>
     </div>
 
     <div class="datos">
@@ -280,6 +292,35 @@
       <button id="btnCancelarConf" class="btn" hidden>Cancelar</button>
     </div>
   </section>
+
+  <!-- Ventana: saldo del cliente -->
+  <div class="velo" id="modalSaldo" hidden>
+    <div class="modal" style="width:min(960px, 96vw); max-height:92vh; overflow:auto">
+      <h3><span>Saldo del cliente</span> <button class="enlace" id="btnCerrarSaldo" style="color:var(--gris); font-size:20px">×</button></h3>
+      <div id="saldoCliente" style="margin:-10px 0 14px; font-weight:600"></div>
+      <div class="tarjetas-saldo">
+        <div><span class="chico">Saldo pendiente</span><b id="sTotal">—</b></div>
+        <div><span class="chico">Vencido</span><b id="sVencido" style="color:var(--err)">—</b></div>
+        <div><span class="chico">Por vencer</span><b id="sPorVencer">—</b></div>
+        <div><span class="chico">Documentos</span><b id="sCant">—</b></div>
+      </div>
+      <table>
+        <thead><tr><th>Tipo documento</th><th>Número</th><th>Emisión</th><th>Vencimiento</th><th class="num">Días vencido</th><th class="num">Total docto.</th><th class="num">Saldo</th></tr></thead>
+        <tbody id="saldoFilas"></tbody>
+      </table>
+      <div class="chico" id="saldoActualizado" style="margin-top:6px"></div>
+      <h3 style="font-size:15px; margin:20px 0 8px">Comentarios del cliente</h3>
+      <div id="saldoComentarios" class="chico"></div>
+      <div style="display:flex; gap:8px; margin-top:8px">
+        <input id="nuevoComentario" class="campo" placeholder="Agregar un comentario sobre este cliente…">
+        <button class="btn" id="btnAgregarComentario">Agregar</button>
+      </div>
+      <div class="acciones">
+        <button class="btn" id="btnSaldoExcel" style="color:var(--ok)">⊞ Exportar a Excel</button>
+        <button class="btn" id="btnSaldoRefrescar">↻ Actualizar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Ventana: ver documento emitido -->
   <div class="velo" id="modalDoc" hidden>
@@ -520,6 +561,7 @@ async function elegirCliente(rut, nombre) {
   $('cliNombre').textContent = nombre || rut; $('cliDetalle').textContent = 'RUT ' + rut;
   $('clienteElegido').hidden = false; $('buscaCliente').parentElement.parentElement.hidden = true;
   validarPaso1();
+  actualizarChipsSaldo(rut);
   // Completar con la ficha de KAME (dirección, giro) para que el vendedor confirme que es el correcto
   const r = await api('/api/clientes/' + encodeURIComponent(rut));
   const f = r.cuerpo?.fichaNormalizada || (Array.isArray(r.cuerpo?.ficha) ? r.cuerpo.ficha : r.cuerpo?.ficha?.items ?? [r.cuerpo?.ficha])[0];
@@ -545,6 +587,7 @@ $('bodega2').innerHTML = BODEGAS.map((b) => `<option value="${b}">${nombreBodega
 function pintarCabecera() {
   $('cabTipo').textContent = doc.tipo === 'pedido' ? 'Nota de venta' : 'Cotización';
   $('cabRut').textContent = doc.cliente.rut; $('cabNombre').textContent = doc.cliente.nombre;
+  if (saldoActual?.rut === doc.cliente.rut) pintarChipSaldo('chipSaldo2', saldoActual); else actualizarChipsSaldo(doc.cliente.rut);
   $('bodega2').value = doc.bodega; $('tituloBodega').textContent = nombreBodega(doc.bodega).toUpperCase();
   // Ejecutivo: el vendedor que entró. El administrador puede elegir a cualquiera.
   const admin = sesion.rol === 'admin';
@@ -1104,6 +1147,84 @@ function separarArticulo(texto, descripcion) {
   const m = t.match(/^(\S+)\s+-\s+(.+)$/);
   return m ? { sku: m[1], nombre: descripcion || m[2] } : { sku: t, nombre: descripcion || t };
 }
+
+// ---------- Saldo del cliente (cuentas por cobrar de KAME) ----------
+let saldoActual = null;
+async function cargarSaldo(rut, refrescar) {
+  const r = await api(`/api/clientes/${encodeURIComponent(rut)}/saldo${refrescar ? '?refrescar=1' : ''}`);
+  return r.ok ? r.cuerpo : { error: r.cuerpo?.error || 'No se pudo leer el saldo' };
+}
+function pintarChipSaldo(id, s) {
+  const chip = $(id); chip.hidden = false; chip.className = 'chip-saldo';
+  if (!s) { chip.textContent = 'Consultando saldo…'; return; }
+  if (s.error) { chip.textContent = 'Saldo: no disponible'; chip.title = s.error; return; }
+  if (!s.documentos.length) { chip.textContent = '✓ Sin saldo pendiente'; chip.title = 'Ver detalle'; return; }
+  chip.classList.add(s.saldoVencido > 0 ? 'vencido' : 'deuda');
+  chip.textContent = `Pendiente ${pesos(s.saldoTotal)}` + (s.saldoVencido > 0 ? ` · Vencido ${pesos(s.saldoVencido)} (${s.documentosVencidos} doc.)` : ' · al día');
+  chip.title = 'Ver detalle del saldo';
+}
+async function actualizarChipsSaldo(rut) {
+  ['chipSaldo1', 'chipSaldo2'].forEach((id) => pintarChipSaldo(id, null));
+  const s = await cargarSaldo(rut);
+  if (doc.cliente?.rut !== rut) return; // cambió de cliente mientras cargaba
+  saldoActual = s;
+  ['chipSaldo1', 'chipSaldo2'].forEach((id) => pintarChipSaldo(id, s));
+}
+
+async function abrirSaldo(refrescar) {
+  if (!doc.cliente) return;
+  $('modalSaldo').hidden = false;
+  $('saldoCliente').textContent = `${doc.cliente.nombre} — RUT ${doc.cliente.rut}`;
+  if (refrescar || !saldoActual || saldoActual.rut !== doc.cliente.rut) {
+    $('saldoFilas').innerHTML = '<tr><td colspan="7" class="chico">Consultando KAME…</td></tr>';
+    saldoActual = await cargarSaldo(doc.cliente.rut, refrescar);
+    ['chipSaldo1', 'chipSaldo2'].forEach((id) => pintarChipSaldo(id, saldoActual));
+  }
+  const s = saldoActual;
+  if (s.error) { $('saldoFilas').innerHTML = ''; $('saldoFilas').insertAdjacentHTML('beforeend', `<tr><td colspan="7" class="chico">${esc(s.error)}</td></tr>`); return; }
+  $('sTotal').textContent = pesos(s.saldoTotal); $('sVencido').textContent = pesos(s.saldoVencido);
+  $('sPorVencer').textContent = pesos(s.saldoPorVencer); $('sCant').textContent = s.documentos.length;
+  $('saldoFilas').innerHTML = s.documentos.length ? '' : '<tr><td colspan="7" class="chico">Sin documentos pendientes de pago.</td></tr>';
+  s.documentos.forEach((d) => {
+    const tr = document.createElement('tr'); if (d.diasVencido > 0) tr.className = 'vencido';
+    [d.documento, d.folio, fechaCL(d.emision), fechaCL(d.vencimiento), d.diasVencido || '', pesos(d.total), pesos(d.saldo)]
+      .forEach((v, i) => { const td = document.createElement('td'); td.textContent = v; if (i >= 4) td.className = 'num'; tr.appendChild(td); });
+    $('saldoFilas').appendChild(tr);
+  });
+  $('saldoActualizado').textContent = 'Datos de KAME de ' + new Date(s.actualizadoEn).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+  cargarComentariosCliente();
+}
+async function cargarComentariosCliente() {
+  const r = await api('/api/clientes/' + encodeURIComponent(doc.cliente.rut));
+  const lista = r.cuerpo?.comentarios || [];
+  const box = $('saldoComentarios'); box.innerHTML = '';
+  if (!lista.length) { box.textContent = 'Sin comentarios.'; return; }
+  lista.forEach((c) => {
+    const d = document.createElement('div'); d.style.cssText = 'padding:6px 0; border-bottom:1px solid #eef1f4';
+    d.innerHTML = '<b></b> <span></span><div style="color:var(--texto)"></div>';
+    d.children[0].textContent = fechaCL(c.fecha); d.children[1].textContent = c.usuario; d.children[2].textContent = c.comentario;
+    box.appendChild(d);
+  });
+}
+$('btnAgregarComentario').onclick = async () => {
+  const texto = $('nuevoComentario').value.trim(); if (!texto || !doc.cliente) return;
+  const r = await api(`/api/clientes/${encodeURIComponent(doc.cliente.rut)}/comentarios`, { method: 'POST', body: JSON.stringify({ usuario: sesion.vendedor, comentario: texto }) });
+  if (r.ok) { $('nuevoComentario').value = ''; cargarComentariosCliente(); }
+};
+$('chipSaldo1').onclick = () => abrirSaldo(false);
+$('chipSaldo2').onclick = () => abrirSaldo(false);
+$('btnSaldoRefrescar').onclick = () => abrirSaldo(true);
+$('btnCerrarSaldo').onclick = () => ($('modalSaldo').hidden = true);
+$('modalSaldo').onclick = (e) => { if (e.target === $('modalSaldo')) $('modalSaldo').hidden = true; };
+$('btnSaldoExcel').onclick = () => {
+  const s = saldoActual; if (!s || s.error || typeof XLSX === 'undefined') return;
+  const filas = [['Saldo del cliente'], ['Cliente', doc.cliente.nombre], ['RUT', doc.cliente.rut], ['Saldo pendiente', s.saldoTotal], ['Vencido', s.saldoVencido], ['Por vencer', s.saldoPorVencer], [],
+    ['Tipo documento', 'Número', 'Emisión', 'Vencimiento', 'Días vencido', 'Total docto.', 'Saldo'],
+    ...s.documentos.map((d) => [d.documento, d.folio, fechaCL(d.emision), fechaCL(d.vencimiento), d.diasVencido, d.total, d.saldo])];
+  const hoja = XLSX.utils.aoa_to_sheet(filas); hoja['!cols'] = [{ wch: 26 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }];
+  const libro = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(libro, hoja, 'Saldo');
+  XLSX.writeFile(libro, `Saldo_${doc.cliente.nombre.replace(/[^\w]+/g, '_').slice(0, 30)}.xlsx`);
+};
 
 // ---------- Ver un documento emitido (leído desde KAME) ----------
 let docViendo = null;
