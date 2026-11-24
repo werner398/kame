@@ -8,6 +8,7 @@ const { router: cobrosRouter } = require("./cobros");
 const { router: clientesRouter } = require("./clientes");
 const { router: productosRouter } = require("./productos");
 const { router: proveedoresRouter } = require("./proveedores");
+const { router: movimientosRouter } = require("./movimientos");
 
 const app = express();
 
@@ -23,7 +24,7 @@ app.use("/api/cobros", cobrosRouter);
 app.use("/api/clientes", clientesRouter);
 app.use("/api/productos", productosRouter);
 app.use("/api/proveedores", proveedoresRouter);
-app.use("/api/diag", require("./diag").router); // TEMPORAL
+app.use("/api/movimientos", movimientosRouter);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

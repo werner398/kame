@@ -239,7 +239,7 @@ const state = {
 const TABS = [
   { id: 'ventas', label: 'Ventas Clientes/Producto' },
   { id: 'producto', label: 'Producto x Clientes' },
-  { id: 'movimiento', label: 'Movimiento productos', pendiente: true },
+  { id: 'movimiento', label: 'Movimiento productos' },
   { id: 'stock', label: 'Consulta stock' },
   { id: 'saldos', label: 'Saldo clientes' },
   { id: 'vencidas', label: 'Facturas Vencidas' },
@@ -973,39 +973,41 @@ function vistaProductoXClientes(main) {
 
 function vistaMovimiento(main) {
   main.innerHTML = `
-    <div class="row">
-      <fieldset style="flex:0.7">
+    <div class="row" style="align-items:stretch">
+      <fieldset style="flex:0.75; display:flex; flex-direction:column">
         <legend>Selección de producto</legend>
-        <div class="field-line"><input id="mv-producto" placeholder="Producto" disabled></div>
-        <div style="margin-top:6px; font-size:11px; color:var(--ink-soft)">Selección Producto:</div>
-        <div class="listbox" style="margin-top:4px"><div class="empty"></div></div>
+        <div class="field-line"><input id="mv-producto" placeholder="Código o nombre" style="flex:1"></div>
+        <div style="margin-top:6px; font-size:11px; color:var(--label); font-weight:700">Selección Producto:</div>
+        <div class="listbox" id="mv-lista" style="margin-top:4px; flex:1; min-height:90px"><div class="empty"></div></div>
       </fieldset>
 
-      <fieldset style="flex:1.1">
+      <fieldset style="flex:1.15">
         <legend>Búsqueda de movimientos</legend>
-        <div class="field-line"><label>Codigo Producto:</label><input disabled></div>
-        <div class="field-line"><label>Nombre Producto:</label><input disabled style="flex:1"></div>
-        <div class="field-line"><label>Bodega:</label><select disabled><option>—</option></select></div>
+        <div class="field-line"><label>Codigo Producto:</label><input id="mv-codigo"></div>
+        <div class="field-line"><label>Nombre Producto:</label><input id="mv-nombre" readonly style="flex:1"></div>
+        <div class="field-line"><label>Bodega:</label><select id="mv-bodega"><option>TODAS</option>${BODEGAS_REALES.map(b => `<option>${b}</option>`).join('')}</select></div>
         <div class="field-line">
-          <label style="display:flex;align-items:center;gap:4px;min-width:auto"><input type="checkbox" disabled> Fecha</label>
-          <label style="min-width:24px">De:</label><select disabled><option>—</option></select>
-          <label style="min-width:16px">A:</label><select disabled><option>—</option></select>
-          <button class="btn" disabled>Buscar</button>
+          <label style="min-width:auto">Fecha</label>
+          <label style="min-width:24px">De:</label><input type="date" id="mv-desde" value="${hace30(365)}">
+          <label style="min-width:16px">A:</label><input type="date" id="mv-hasta" value="${hoy()}">
+          <button class="btn primary" id="mv-buscar">Buscar</button>
         </div>
       </fieldset>
 
       <fieldset style="flex:0.7">
-        <legend>Min Max</legend>
-        <div class="field-line"><label>Codigo Act.:</label><input disabled></div>
-        <div class="field-line"><label>Min:</label><input disabled><button class="btn" disabled>Aplica</button></div>
-        <div class="field-line"><label>Max:</label><input disabled></div>
-        <div class="field-line"><label>Costo:</label><input disabled></div>
+        <legend>Resumen del período</legend>
+        <div class="kv-compact"><label>Saldo inicial:</label><span class="val" id="mv-saldo-ini">—</span></div>
+        <div class="kv-compact"><label>Entradas:</label><span class="val" id="mv-entradas">—</span></div>
+        <div class="kv-compact"><label>Salidas:</label><span class="val" id="mv-salidas">—</span></div>
+        <div class="kv-compact"><label>Saldo final:</label><span class="val highlight" id="mv-saldo-fin">—</span></div>
+        <div class="kv-compact"><label>Stock actual:</label><span class="val" id="mv-stock">—</span></div>
+        <div class="kv-compact"><label>Min / Max:</label><span class="val" id="mv-minmax">—</span></div>
       </fieldset>
     </div>
 
     <div style="display:flex; gap:8px; margin-bottom:4px">
-      <button class="btn" disabled style="flex:1" title="Sin endpoint de kardex en la API">Cartola Producto</button>
-      <button class="btn" disabled title="Sin endpoint de kardex en la API">Exportar Excel</button>
+      <button class="btn" id="mv-cartola" style="flex:1">Cartola Producto</button>
+      <button class="btn" id="mv-excel">Exportar Excel</button>
     </div>
 
     <div class="table-wrap">
@@ -1013,19 +1015,124 @@ function vistaMovimiento(main) {
         <thead><tr>
           <th>Tipo Docto</th><th>Fecha</th><th>Bodega</th><th>N° Docto</th>
           <th style="text-align:right">Entrada</th><th style="text-align:right">Salida</th>
-          <th style="text-align:right">Saldo</th><th>Glosa</th><th style="text-align:right">Costo</th>
+          <th style="text-align:right">Saldo</th><th>Glosa</th><th>Cliente / Proveedor</th><th>Motivo</th>
+          <th style="text-align:right">Costo</th>
         </tr></thead>
-        <tbody><tr><td colspan="9">
-          <div class="pending-panel">
-            <b>Kardex de movimientos — confirmado en el roadmap de KAME.</b><br>
-            KAME confirmó que van a agregar el endpoint (getInformeInventario), con fecha estimada
-            <b>enero de 2027</b>. Hasta entonces esta tabla no puede traer datos reales, solo el stock actual
-            (pestaña "Consulta stock").
-          </div>
-        </td></tr></tbody>
+        <tbody id="mv-tbody"><tr><td colspan="11" class="empty-state">Elige un producto y presiona Buscar.</td></tr></tbody>
       </table>
     </div>
   `;
+
+  let listaStock = null;
+  let movimientos = [];
+  let ultimaConsulta = null;
+
+  const fmtCant = (n) => (n === null || n === undefined || n === '') ? '' : Number(n).toLocaleString('es-CL', { maximumFractionDigits: 3 });
+
+  async function obtenerListaStock() {
+    if (listaStock) return listaStock;
+    try {
+      const resp = await api('/api/stock');
+      listaStock = Array.isArray(resp.datos) ? resp.datos : (resp.datos?.data ?? []);
+    } catch { listaStock = []; }
+    return listaStock;
+  }
+
+  function elegirProducto(p) {
+    document.getElementById('mv-codigo').value = p.SKU ?? '';
+    document.getElementById('mv-nombre').value = p.articulo ?? '';
+    document.getElementById('mv-producto').value = p.SKU ?? '';
+    document.getElementById('mv-lista').innerHTML = `<div class="opt">${p.articulo ?? ''} ;; ${p.SKU}</div>`;
+  }
+
+  const buscarEnVivo = debounce(async (texto) => {
+    const box = document.getElementById('mv-lista');
+    if (!texto || texto.length < 2) { box.innerHTML = `<div class="empty"></div>`; return; }
+    const q = texto.toLowerCase();
+    const coincidencias = (await obtenerListaStock())
+      .filter(p => String(p.SKU ?? '').toLowerCase().includes(q) || String(p.articulo ?? '').toLowerCase().includes(q))
+      .slice(0, 30);
+    if (coincidencias.length === 0) { box.innerHTML = `<div class="empty">Sin coincidencias</div>`; return; }
+    box.innerHTML = coincidencias.map((p, i) => `<div class="opt" data-i="${i}">${p.articulo ?? ''} ;; ${p.SKU}</div>`).join('');
+    box.querySelectorAll('.opt[data-i]').forEach(el => { el.onclick = () => elegirProducto(coincidencias[Number(el.dataset.i)]); });
+  }, 300);
+  document.getElementById('mv-producto').addEventListener('input', e => buscarEnVivo(e.target.value.trim()));
+  document.getElementById('mv-producto').addEventListener('keydown', e => { if (e.key === 'Enter') buscar(); });
+  document.getElementById('mv-codigo').addEventListener('keydown', e => { if (e.key === 'Enter') buscar(); });
+
+  async function buscar() {
+    let sku = document.getElementById('mv-codigo').value.trim() || document.getElementById('mv-producto').value.trim();
+    if (!sku) { toast('Elige un producto primero', 'error'); return; }
+    const lista = await obtenerListaStock();
+    const p = lista.find(x => String(x.SKU ?? '').toLowerCase() === sku.toLowerCase());
+    if (p) { sku = p.SKU; document.getElementById('mv-codigo').value = sku; document.getElementById('mv-nombre').value = p.articulo ?? ''; }
+    const bodega = document.getElementById('mv-bodega').value;
+    const desde = document.getElementById('mv-desde').value;
+    const hasta = document.getElementById('mv-hasta').value;
+    const nombre = document.getElementById('mv-nombre').value;
+
+    const tbody = document.getElementById('mv-tbody');
+    tbody.innerHTML = `<tr><td colspan="11" class="loading-state">Cargando movimientos…</td></tr>`;
+    try {
+      const params = new URLSearchParams({ sku, bodega, desde, hasta });
+      if (nombre) params.set('articulo', nombre);
+      const r = await api(`/api/movimientos?${params}`);
+      movimientos = r.items || [];
+      ultimaConsulta = r;
+
+      document.getElementById('mv-saldo-ini').textContent = r.saldoInicial ?? '—';
+      document.getElementById('mv-entradas').textContent = fmtCant(r.totalEntradas);
+      document.getElementById('mv-salidas').textContent = fmtCant(r.totalSalidas);
+      document.getElementById('mv-saldo-fin').textContent = r.saldoFinal ?? '—';
+      document.getElementById('mv-stock').textContent = r.stockActual ?? '—';
+
+      tbody.innerHTML = movimientos.length === 0
+        ? `<tr><td colspan="11" class="empty-state">Sin movimientos de ${sku} en ese período${bodega !== 'TODAS' ? ' en ' + bodega : ''}.</td></tr>`
+        : movimientos.map(m => `
+          <tr>
+            <td>${m.DocumentoReferencia ?? m.Origen ?? ''}</td>
+            <td>${fmtDate(m.Fecha)}</td>
+            <td>${m.Bodega ?? ''}</td>
+            <td class="mono">${m.Folio ?? ''}</td>
+            <td class="num mono">${Number(m.CantidadEntrada) ? fmtCant(m.CantidadEntrada) : ''}</td>
+            <td class="num mono">${Number(m.CantidadSalida) ? fmtCant(m.CantidadSalida) : ''}</td>
+            <td class="num mono">${fmtCant(m.SaldoCalculado ?? m.CantidadSaldo)}</td>
+            <td>${m.Glosa ?? ''}</td>
+            <td>${m.Ficha ?? ''}</td>
+            <td>${m.MotivoMovimiento ?? ''}</td>
+            <td class="num mono">${Number(m.CostoPromedio) ? fmtMoney(m.CostoPromedio) : ''}</td>
+          </tr>
+        `).join('');
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="11" class="empty-state">Error: ${e.message}</td></tr>`;
+      return;
+    }
+
+    // Min / Max desde la ficha (solo lectura).
+    try {
+      const resp = await api(`/api/productos/${encodeURIComponent(sku)}`);
+      const listaF = Array.isArray(resp) ? resp : (resp?.items ?? resp?.data ?? []);
+      const f = listaF.find(x => String(x.SKU ?? '').toLowerCase() === sku.toLowerCase()) ?? listaF[0];
+      document.getElementById('mv-minmax').textContent = f ? `${f.StockMin ?? '—'} / ${f.StockMax ?? '—'}` : '—';
+    } catch { document.getElementById('mv-minmax').textContent = '—'; }
+  }
+
+  document.getElementById('mv-buscar').onclick = buscar;
+  document.getElementById('mv-cartola').onclick = buscar;
+  document.getElementById('mv-bodega').addEventListener('change', () => { if (movimientos.length || ultimaConsulta) buscar(); });
+
+  document.getElementById('mv-excel').onclick = () => {
+    if (movimientos.length === 0) { toast('No hay datos para exportar', 'error'); return; }
+    const sku = ultimaConsulta?.sku || 'producto';
+    descargarExcel(`movimientos_${sku}.xlsx`, movimientos.map(m => ({ ...m, Fecha: String(m.Fecha ?? '').slice(0, 10), Saldo: m.SaldoCalculado ?? m.CantidadSaldo })), [
+      { clave: 'DocumentoReferencia', titulo: 'Tipo Docto' }, { clave: 'Fecha', titulo: 'Fecha' },
+      { clave: 'Bodega', titulo: 'Bodega' }, { clave: 'Folio', titulo: 'N° Docto' },
+      { clave: 'CantidadEntrada', titulo: 'Entrada' }, { clave: 'CantidadSalida', titulo: 'Salida' },
+      { clave: 'Saldo', titulo: 'Saldo' }, { clave: 'Glosa', titulo: 'Glosa' },
+      { clave: 'Ficha', titulo: 'Cliente / Proveedor' }, { clave: 'MotivoMovimiento', titulo: 'Motivo' },
+      { clave: 'CostoPromedio', titulo: 'Costo' }, { clave: 'Sku', titulo: 'Codigo' }, { clave: 'Articulo', titulo: 'Producto' },
+    ]);
+  };
 }
 
 async function vistaConsultaStock(main) {

@@ -18,6 +18,7 @@ todo con validaciones y registro de auditoría propio.
 - `GET /api/productos/:sku`
 - `PUT /api/productos/:sku` — body: `{ "usuario": "...", "cambios": { "nombre"?, "precioLista"?, "stockMin"?, "stockMax"? } }`
 - `GET /api/productos/:sku/auditoria` — historial de cambios
+- `GET /api/movimientos?sku=&bodega=&desde=&hasta=` — kardex desde getInformeInventario, con saldo calculado desde el stock actual
 
 ## Cómo desplegarlo en la nube (Railway — sin conocimientos técnicos)
 
