@@ -17,7 +17,10 @@ app.use(cors());
 app.use(express.json());
 
 // Chequeo simple para saber si el servidor está vivo (útil al hostear)
-app.get("/health", (req, res) => res.json({ ok: true, hora: new Date().toISOString() }));
+const db = require("./db");
+app.get("/health", (req, res) =>
+  res.json({ ok: true, hora: new Date().toISOString(), baseDatosPersistente: db.persistente })
+);
 
 app.use("/api/stock", stockRouter);
 app.use("/api/ventas", ventasRouter);

@@ -7,7 +7,15 @@
 const Database = require("better-sqlite3");
 const path = require("path");
 
-const dbPath = path.join(__dirname, "..", "dashboard.db");
+// En Railway, el disco del contenedor se borra en cada despliegue. Si hay
+// un volumen conectado (RAILWAY_VOLUME_MOUNT_PATH) o se indica DB_PATH,
+// la base vive ahí y sobrevive a los despliegues.
+const dbPath =
+  process.env.DB_PATH ||
+  (process.env.RAILWAY_VOLUME_MOUNT_PATH
+    ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "dashboard.db")
+    : path.join(__dirname, "..", "dashboard.db"));
+const dbPersistente = Boolean(process.env.DB_PATH || process.env.RAILWAY_VOLUME_MOUNT_PATH);
 const db = new Database(dbPath);
 
 db.pragma("journal_mode = WAL");
@@ -89,4 +97,5 @@ try {
   // La columna ya existía — no hay nada que hacer.
 }
 
+db.persistente = dbPersistente;
 module.exports = db;

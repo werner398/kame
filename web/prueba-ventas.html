@@ -172,6 +172,8 @@ async function conectar() {
     const v = r.cuerpo.vendedores;
     $('vendedor').innerHTML = `<option value="">${v.length ? '— elegir —' : '(sin vendedor)'}</option>` +
       v.map((n) => `<option>${n.replace(/</g, '&lt;')}</option>`).join('');
+    const ultimo = leer('kame_ultimo_vendedor', '');
+    if (ultimo && v.includes(ultimo)) $('vendedor').value = ultimo;
     $('estadoConexion').textContent = `Conectado. ${v.length} vendedores en KAME.` +
       (v.length === 0 ? ' Se puede emitir igual, sin vendedor. La respuesta cruda de KAME está en el resultado.' : '');
     if (v.length === 0) mostrar('warn', 'KAME no devolvió vendedores reconocibles', r.cuerpo);
@@ -182,6 +184,7 @@ async function conectar() {
 $('btnConectar').onclick = conectar;
 
 // ---- Tipo ----
+$('vendedor').onchange = () => guardar('kame_ultimo_vendedor', $('vendedor').value);
 $('tipo').onchange = () => { $('lblVigencia').style.display = $('tipo').value === 'cotizacion' ? '' : 'none'; };
 
 // ---- Buscador de clientes ----
@@ -282,7 +285,7 @@ function cuerpoDocumento(enviar) {
     formaPago: $('formaPago').value,
     diasVigencia: Number($('diasVigencia').value || 15),
     comentario: $('comentario').value,
-    emitidoPor: $('emitidoPor').value || 'prueba',
+    emitidoPor: $('emitidoPor').value || $('vendedor').value || 'sin nombre',
     items: leerLineas(),
     enviar,
   };

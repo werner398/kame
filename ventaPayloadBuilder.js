@@ -116,12 +116,14 @@ async function construirBase(input, resolvers, tipo) {
     throw new VentaPayloadError("El documento no tiene productos", "items");
   }
 
-  // Vendedor: si se indica, debe existir tal cual en KAME (sin mayúsculas).
-  // Vacío se permite por ahora (la cuenta puede no tener vendedores
-  // creados); KAME dirá si lo exige.
+  // Vendedor: obligatorio si KAME tiene vendedores creados, y debe existir
+  // tal cual en KAME (se compara sin mayúsculas).
   let vendedorKame = "";
+  const vendedores = await resolvers.listarVendedores();
+  if (!String(vendedor || "").trim() && vendedores.length > 0) {
+    throw new VentaPayloadError("Elige el vendedor que está vendiendo", "vendedor");
+  }
   if (String(vendedor || "").trim()) {
-    const vendedores = await resolvers.listarVendedores();
     vendedorKame = vendedores.find(
       (v) => String(v).trim().toLowerCase() === String(vendedor).trim().toLowerCase()
     );
