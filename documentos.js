@@ -122,6 +122,16 @@ const RUTAS_FORMAS_PAGO = [
 ];
 let cacheFormasPago = { datos: null, en: 0 };
 
+// KAME solo acepta FormaPago "1" (contado) o "2" (crédito). Las condiciones
+// de venta de la cuenta (con sus propios códigos internos) se traducen a eso:
+// crédito si dice "crédito" o tiene días de plazo, salvo tarjeta, contado,
+// débito, efectivo o transferencia, que van como contado.
+function esCondicionCredito(nombre, dias) {
+  const n = String(nombre || "");
+  if (/tarjeta|contado|efectivo|d[eé]bito|transferencia|cheque al d[ií]a/i.test(n)) return false;
+  return /cr[eé]dito/i.test(n) || Number(dias) > 0;
+}
+
 async function listarFormasPago({ forzar = false } = {}) {
   if (!forzar && cacheFormasPago.datos && Date.now() - cacheFormasPago.en < 30 * 60 * 1000) {
     return cacheFormasPago.datos;
@@ -136,13 +146,14 @@ async function listarFormasPago({ forzar = false } = {}) {
       intentos.push({ ruta, ok: true, filas: filas.length, muestra: JSON.stringify(filas[0] ?? crudo)?.slice(0, 400) });
       const leidas = filas
         .map((f) => {
-          if (typeof f === "string") return { codigo: f, nombre: f, dias: 0, credito: /cr[eé]dito/i.test(f) && !/tarjeta/i.test(f) };
+          if (typeof f === "string") return { codigo: f, nombre: f, dias: 0, credito: esCondicionCredito(f, 0) };
           const codigo = f.Codigo ?? f.codigo ?? f.Id ?? f.id ?? f.ID ?? f.FormaPago ?? f.CodFormaPago ?? f.CodigoFormaPago
             ?? f.CodCondicion ?? f.CodigoCondicion ?? f.IdCondicion ?? f.CondicionVenta ?? f.Condicion;
           const nombre = f.Descripcion ?? f.descripcion ?? f.Nombre ?? f.nombre ?? f.Glosa ?? f.NombreCondicion
             ?? f.CondicionVenta ?? f.Condicion ?? f.FormaPago;
-          const dias = Number(f.Dias ?? f.dias ?? f.Plazo ?? f.DiasVencimiento ?? f.DiasPlazo ?? 0) || 0;
-          return codigo != null && nombre ? { codigo: String(codigo), nombre: String(nombre), dias, credito: dias > 0 } : null;
+          const diasNombre = Number(String(f.Descripcion ?? f.Nombre ?? "").match(/(\d+)\s*d[ií]as?/i)?.[1] || 0);
+          const dias = Number(f.Dias ?? f.dias ?? f.Plazo ?? f.DiasVencimiento ?? f.DiasPlazo ?? 0) || diasNombre;
+          return codigo != null && nombre ? { codigo: String(codigo), nombre: String(nombre), dias, credito: esCondicionCredito(nombre, dias) } : null;
         })
         .filter(Boolean);
       if (leidas.length) { formas = leidas; origen = ruta; break; }
@@ -173,6 +184,21 @@ function extraerFolio(resp) {
   if (directo != null && directo !== "") return String(directo);
   const m = JSON.stringify(resp).match(/folio"?\s*[:=]?\s*"?(\d{1,12})/i);
   return m ? m[1] : null;
+}
+
+// Devuelve la lista de mensajes de error si KAME rechazó (aunque haya
+// respondido HTTP 200), o null si no hay error.
+function erroresDeRespuesta(resp) {
+  if (!resp || typeof resp !== "object") return null;
+  const estado = String(resp.Estado ?? resp.estado ?? "").toLowerCase();
+  const lista = resp.Error ?? resp.Errores ?? resp.errors ?? resp.error;
+  const mensajes = (Array.isArray(lista) ? lista : lista ? [lista] : []).map((e) =>
+    typeof e === "string"
+      ? e
+      : [e.MemberNames?.join?.(", "), e.ErrorMessage ?? e.Mensaje ?? e.message].filter(Boolean).join(": ")
+  ).filter(Boolean);
+  if (estado === "error" || mensajes.length) return mensajes.length ? mensajes : ["KAME respondió con estado Error"];
+  return null;
 }
 
 // Un documento cuenta como encontrado solo si trae datos reales:
@@ -341,14 +367,29 @@ router.post("/:tipo", exigirAcceso, async (req, res) => {
     });
   }
 
+  // KAME puede rechazar respondiendo HTTP 200 con { Estado: "Error", Error: [...] }
+  const erroresKame = erroresDeRespuesta(respuesta);
+  if (erroresKame) {
+    const texto = erroresKame.join(" · ");
+    insertarRegistro.run({
+      ...base, folio: null, estado: "rechazado", respuesta: json(respuesta), verificacion: null, error: texto,
+    });
+    return res.status(422).json({
+      error: `KAME rechazó la ${def.nombre.toLowerCase()}: ${texto}`,
+      respuestaKame: respuesta,
+      payload,
+    });
+  }
+
   const folio = extraerFolio(respuesta);
   if (!folio) {
-    insertarRegistro.run({
+    const registroSinFolio = insertarRegistro.run({
       ...base, folio: null, estado: "sin_folio", respuesta: json(respuesta),
       verificacion: null, error: "KAME respondió sin folio",
     });
     return res.status(202).json({
       estado: "sin_folio",
+      registroId: Number(registroSinFolio.lastInsertRowid),
       mensaje: "KAME respondió OK pero sin un folio reconocible. Revisar en el ERP si el documento existe.",
       respuestaKame: respuesta,
       payload,

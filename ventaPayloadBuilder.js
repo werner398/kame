@@ -158,10 +158,14 @@ async function construirBase(input, resolvers, tipo) {
   // línea se envía como una cuota con su monto y su fecha (hoy si es
   // contado, fecha + días si es crédito). FormaPago queda como la primera
   // condición a crédito, porque KAME exige cuotas solo en crédito.
-  let formaPagoFinal = String(formaPago);
+  // KAME solo acepta FormaPago "1" (contado) o "2" (crédito); los códigos
+  // internos de las condiciones de venta NO se pueden enviar ahí.
+  let formaPagoFinal = esCredito ? "2" : "1";
   let cuotasKame = null;
   const pagos = Array.isArray(input.pagos) ? input.pagos.filter((p) => p && p.codigo) : [];
-  if (pagos.length > 1 || (pagos.length === 1 && pagos[0].credito)) {
+  const hayCredito = pagos.some((p) => p.credito);
+  if (pagos.length) formaPagoFinal = hayCredito ? "2" : "1";
+  if (hayCredito) {
     let montos = pagos.map((p) => (p.monto == null || p.monto === "" ? null : clp(Number(p.monto))));
     if (pagos.length === 1) montos = [totales.total];
     if (montos.some((m) => m == null || !(m > 0))) {
@@ -174,14 +178,12 @@ async function construirBase(input, resolvers, tipo) {
       throw new VentaPayloadError(`Las condiciones de pago suman ${suma} pero el total es ${totales.total}`, "pagos");
     }
     montos[montos.length - 1] += diferencia;
-    const credito = pagos.find((p) => p.credito);
-    formaPagoFinal = String((credito || pagos[0]).codigo);
     cuotasKame = construirCuotas(
       pagos.map((p, i) => ({ fechaPago: sumarDias(fecha, p.credito ? Number(p.dias) || 30 : 0), montoPago: montos[i] })),
       totales.total
     );
-  } else if (pagos.length === 1) {
-    formaPagoFinal = String(pagos[0].codigo);
+  } else if (pagos.length) {
+    // Todo contado: sin cuotas
   } else if (esCredito) {
     const lista =
       Array.isArray(cuotas) && cuotas.length
@@ -191,9 +193,22 @@ async function construirBase(input, resolvers, tipo) {
   }
 
   // Nota de venta basada en una cotización: queda la referencia en el comentario
-  const comentarioFinal = input.cotizacionOrigen
-    ? `Según cotización N° ${input.cotizacionOrigen}${comentario ? ". " + comentario : ""}`
-    : comentario;
+  // La condición de venta elegida (ej. "Tarjeta de crédito", o un pago dividido)
+  // queda escrita en el comentario, porque FormaPago solo distingue contado/crédito.
+  const pesosCL = (n) => "$" + Math.round(n).toLocaleString("es-CL");
+  let textoCondicion = "";
+  if (pagos.length === 1 && pagos[0].nombre && !/^(contado|cr[eé]dito)$/i.test(String(pagos[0].nombre).trim())) {
+    textoCondicion = `Condición de venta: ${pagos[0].nombre}`;
+  } else if (pagos.length > 1) {
+    textoCondicion = "Condición de venta: " + pagos
+      .map((p, i) => `${p.nombre || "condición " + (i + 1)} ${pesosCL(cuotasKame ? cuotasKame[i]?.MontoPago ?? p.monto : p.monto)}`)
+      .join(" + ");
+  }
+  const comentarioFinal = [
+    input.cotizacionOrigen && `Según cotización N° ${input.cotizacionOrigen}`,
+    textoCondicion,
+    comentario,
+  ].filter(Boolean).join(". ");
 
   return {
     Usuario: usuario,

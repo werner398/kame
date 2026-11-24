@@ -847,7 +847,7 @@ function cuerpoDocumento(enviar) {
   return {
     rut: doc.cliente.rut, vendedor: sesion.rol === 'admin' ? (doc.ejecutivo || sesion.vendedor) : sesion.vendedor, bodega: doc.bodega,
     formaPago: p0.codigo, esCredito: f0.credito, diasCredito: p0.dias || 30,
-    pagos: doc.pagos.map((p) => ({ codigo: p.codigo, credito: forma(p.codigo).credito, dias: p.dias, monto: p.monto })),
+    pagos: doc.pagos.map((p) => ({ codigo: p.codigo, nombre: forma(p.codigo).nombre, credito: forma(p.codigo).credito, dias: p.dias, monto: p.monto })),
     diasVigencia: Number($('diasVigencia').value || 15),
     cotizacionOrigen: doc.tipo === 'pedido' ? doc.cotizacionOrigen : null,
     comentario: [doc.nroOC && `OC N° ${doc.nroOC}${doc.fechaOC ? ' del ' + doc.fechaOC.split('-').reverse().join('-') : ''}`, $('comentario').value.trim()].filter(Boolean).join('. '),
