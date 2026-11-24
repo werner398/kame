@@ -170,10 +170,10 @@ async function conectar() {
       return;
     }
     const v = r.cuerpo.vendedores;
-    $('vendedor').innerHTML = '<option value="">— elegir —</option>' +
+    $('vendedor').innerHTML = `<option value="">${v.length ? '— elegir —' : '(sin vendedor)'}</option>` +
       v.map((n) => `<option>${n.replace(/</g, '&lt;')}</option>`).join('');
     $('estadoConexion').textContent = `Conectado. ${v.length} vendedores en KAME.` +
-      (v.length === 0 ? ' (Ninguno reconocido: revisa "muestraVendedorKame" en el resultado.)' : '');
+      (v.length === 0 ? ' Se puede emitir igual, sin vendedor. La respuesta cruda de KAME está en el resultado.' : '');
     if (v.length === 0) mostrar('warn', 'KAME no devolvió vendedores reconocibles', r.cuerpo);
   } catch (e) {
     $('estadoConexion').textContent = 'No se pudo conectar al backend: ' + e.message;

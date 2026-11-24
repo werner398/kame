@@ -66,22 +66,34 @@ function exigirClave(req, res, next) {
 
 const lista = (r) => (Array.isArray(r) ? r : r?.items ?? r?.data ?? (r ? [r] : []));
 
-let cacheVendedores = { nombres: null, crudo: null, en: 0 };
+let cacheVendedores = { nombres: null, intentos: [], en: 0 };
 
+const nombreVendedor = (v) =>
+  typeof v === "string"
+    ? v
+    : v?.NombreVendedor ?? v?.Nombre ?? v?.Vendedor ?? v?.nombre ?? v?.vendedor ?? v?.Descripcion ?? null;
+
+// Probamos el endpoint con y sin paginación (los listados de KAME suelen
+// pedir page/per_page) y guardamos la respuesta cruda para diagnóstico.
 async function listarVendedores({ forzar = false } = {}) {
   if (!forzar && cacheVendedores.nombres && Date.now() - cacheVendedores.en < 10 * 60 * 1000) {
     return cacheVendedores.nombres;
   }
-  const crudo = await llamarKame("/Maestro/getListVendedor");
-  const nombres = lista(crudo)
-    .map((v) =>
-      typeof v === "string"
-        ? v
-        : v.NombreVendedor ?? v.Nombre ?? v.Vendedor ?? v.nombre ?? v.Descripcion ?? null
-    )
-    .filter(Boolean);
-  cacheVendedores = { nombres, crudo, en: Date.now() };
-  return nombres;
+  const rutas = ["/Maestro/getListVendedor", "/Maestro/getListVendedor?page=1&per_page=500"];
+  const intentos = [];
+  let nombres = [];
+  for (const ruta of rutas) {
+    try {
+      const crudo = await llamarKame(ruta);
+      const encontrados = lista(crudo).map(nombreVendedor).filter(Boolean);
+      intentos.push({ ruta, respuestaKame: JSON.stringify(crudo)?.slice(0, 1500) ?? null, encontrados: encontrados.length });
+      if (encontrados.length) { nombres = encontrados; break; }
+    } catch (e) {
+      intentos.push({ ruta, status: e.status, error: e.detalle ?? e.message });
+    }
+  }
+  cacheVendedores = { nombres: [...new Set(nombres)], intentos, en: Date.now() };
+  return cacheVendedores.nombres;
 }
 
 async function fichaCliente(rut) {
@@ -182,8 +194,8 @@ router.get("/opciones", async (req, res) => {
     res.json({
       vendedores,
       bodegas: BODEGAS,
-      // Primer registro tal cual llega de KAME, para revisar nombres de campos
-      muestraVendedorKame: lista(cacheVendedores.crudo)[0] ?? null,
+      // Respuesta tal cual llega de KAME, para revisar nombres de campos
+      diagnosticoVendedores: cacheVendedores.intentos,
     });
   } catch (error) {
     res.status(502).json({ error: error.message, detalle: error.detalle, bodegas: BODEGAS });
