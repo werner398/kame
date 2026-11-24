@@ -5,6 +5,13 @@ ventas y cobranza, y expone la única escritura habilitada por ahora:
 actualizar nombre, precio de lista, y mínimo/máximo de un producto —
 todo con validaciones y registro de auditoría propio.
 
+## Ventana de ventas (vendedores)
+
+- `web/ventas.html` — ventana para vendedores (estilo del sistema de Notas de Venta de Coditec): ingreso con nombre de KAME + clave,
+  paso 1 (tipo de documento, cliente, bodega, centro de costo Casa Matriz), paso 2 (forma de pago con varias condiciones,
+  ejecutivo, N° OC/fecha/comentarios, productos con stock de la bodega), previsualizar PDF, descargar Excel y crear en KAME.
+- `web/prueba-ventas.html` — página técnica de diagnóstico de la emisión.
+
 ## Qué endpoints expone (para el dashboard)
 
 - `GET /api/stock` — stock general (cacheado, se refresca cada 2 min)

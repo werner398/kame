@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codimet · Notas de Venta</title>
+<style>
+  :root {
+    --azul:#1769c2; --azul-osc:#0f4f96; --azul-claro:#e8f1fb; --texto:#1f2a37; --gris:#6b7685;
+    --linea:#dde3ea; --fondo:#f5f7fa; --ok:#1e7b34; --warn:#9a6700; --err:#b42318;
+  }
+  [hidden] { display:none !important; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; color:var(--texto); background:#fff; }
+  button, input, select, textarea { font:inherit; color:inherit; }
+
+  /* Barra superior */
+  .barra { display:flex; align-items:center; gap:28px; padding:14px 28px; border-bottom:1px solid var(--linea); background:#fff; position:sticky; top:0; z-index:10; }
+  .logo { display:flex; align-items:center; gap:8px; font-weight:700; color:var(--azul); letter-spacing:.5px; }
+  .logo-icono { width:26px; height:26px; border-radius:50%; border:5px solid var(--azul); border-right-color:transparent; }
+  .titulo { font-size:18px; font-weight:600; }
+  .barra .der { margin-left:auto; display:flex; align-items:center; gap:18px; color:var(--gris); font-size:13px; }
+  .barra a, .enlace { color:var(--azul); text-decoration:none; cursor:pointer; background:none; border:0; padding:0; }
+  .usuario { display:flex; align-items:center; gap:8px; }
+  .avatar { width:32px; height:32px; border-radius:50%; background:var(--azul); color:#fff; display:grid; place-items:center; font-weight:600; font-size:12px; }
+  .usuario b { display:block; color:var(--texto); font-size:13px; text-transform:uppercase; }
+  .usuario small { font-size:11px; }
+
+  main { max-width:1120px; margin:0 auto; padding:24px 28px 60px; }
+  .etiqueta { font-size:13px; font-weight:600; color:var(--gris); margin:0 0 6px; }
+  .campo { width:100%; padding:11px 14px; border:1px solid var(--linea); border-radius:6px; background:#fff; outline:none; }
+  .campo:focus { border-color:var(--azul); box-shadow:0 0 0 3px var(--azul-claro); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .bloque { margin-bottom:22px; }
+  .fijo { padding:11px 2px; color:var(--texto); }
+  .btn { padding:10px 18px; border-radius:6px; border:1px solid var(--linea); background:#fff; cursor:pointer; font-weight:600; }
+  .btn:hover { background:var(--fondo); }
+  .btn.primario { background:var(--azul); border-color:var(--azul); color:#fff; }
+  .btn.primario:hover { background:var(--azul-osc); }
+  .btn.peligro { background:var(--err); border-color:var(--err); color:#fff; }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .acciones { display:flex; justify-content:flex-end; gap:10px; margin-top:24px; }
+  .chico { font-size:12px; color:var(--gris); }
+  .pie { text-align:center; font-size:11px; color:#9aa4b1; margin-top:60px; }
+
+  /* Desplegables de búsqueda */
+  .buscador { position:relative; }
+  .opciones { position:absolute; left:0; right:0; top:calc(100% + 4px); background:#fff; border:1px solid var(--linea); border-radius:6px;
+              box-shadow:0 8px 24px rgba(15,40,80,.12); max-height:320px; overflow:auto; z-index:20; }
+  .opciones div { padding:9px 14px; cursor:pointer; border-bottom:1px solid #f0f2f5; }
+  .opciones div:last-child { border-bottom:0; }
+  .opciones div.activo, .opciones div:hover { background:var(--azul-claro); }
+  .opciones .sub { color:var(--gris); font-size:12px; }
+
+  /* Tarjeta de cliente elegido */
+  .tarjeta { border:1px solid var(--linea); border-radius:8px; padding:14px 16px; background:var(--fondo); display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+  .tarjeta b { font-size:15px; }
+
+  /* Login */
+  .login { max-width:380px; margin:60px auto; border:1px solid var(--linea); border-radius:10px; padding:28px; }
+  .login h2 { margin:0 0 18px; font-size:18px; }
+
+  /* Paso 2 */
+  .resumen { display:flex; flex-wrap:wrap; gap:8px 28px; align-items:center; padding:12px 16px; background:var(--fondo); border:1px solid var(--linea); border-radius:8px; margin-bottom:22px; }
+  .resumen span { color:var(--gris); font-size:12px; display:block; }
+  .resumen .enlace { margin-left:auto; }
+  .segmento { display:inline-flex; border:1px solid var(--linea); border-radius:6px; overflow:hidden; }
+  .segmento button { border:0; background:#fff; padding:9px 18px; cursor:pointer; font-weight:600; color:var(--gris); }
+  .segmento button.on { background:var(--azul); color:#fff; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; font-size:12px; color:var(--gris); font-weight:600; padding:8px; border-bottom:1px solid var(--linea); }
+  td { padding:8px; border-bottom:1px solid #eef1f4; vertical-align:middle; }
+  td input { width:100%; padding:7px 8px; border:1px solid var(--linea); border-radius:5px; text-align:right; }
+  .num { text-align:right; white-space:nowrap; }
+  .quitar { border:0; background:none; color:var(--gris); font-size:18px; cursor:pointer; }
+  .quitar:hover { color:var(--err); }
+  .stock-bajo { color:var(--err); font-weight:600; }
+  .totales { margin-left:auto; width:280px; margin-top:12px; }
+  .totales div { display:flex; justify-content:space-between; padding:4px 0; }
+  .totales .total { border-top:1px solid var(--linea); margin-top:4px; padding-top:8px; font-size:17px; font-weight:700; }
+  .fila { display:flex; flex-wrap:wrap; gap:18px; align-items:flex-end; }
+  .fila > div { min-width:160px; }
+
+  .msg { padding:12px 14px; border-radius:6px; margin:14px 0; border:1px solid; }
+  .msg.ok { background:#eaf6ec; border-color:#b7dfc0; color:#14532d; }
+  .msg.warn { background:#fff8e6; border-color:#f0d9a0; color:#6b4a00; }
+  .msg.err { background:#fdecea; border-color:#f3c0bb; color:#7a1a12; }
+
+  .exito { text-align:center; padding:40px 20px; }
+  .exito .folio { font-size:42px; font-weight:700; color:var(--azul); margin:8px 0; }
+
+  details.tecnico { margin-top:10px; font-size:12px; color:var(--gris); }
+  details.tecnico pre { background:#111827; color:#d1d5db; padding:10px; border-radius:6px; overflow:auto; max-height:260px; }
+
+  /* Panel de vendedores (admin) */
+  .panel { border:1px solid var(--linea); border-radius:8px; padding:16px; margin-bottom:22px; }
+  .panel h3 { margin:0 0 10px; font-size:15px; }
+  .panel td input { text-align:left; }
+
+  /* Encabezado del documento (paso 2) */
+  .cab { display:flex; gap:40px; align-items:flex-start; margin-bottom:16px; }
+  .cab .k { font-size:11px; color:var(--gris); text-transform:uppercase; letter-spacing:.4px; }
+  .cab .tipo { font-size:18px; font-weight:700; color:var(--azul-osc); text-transform:uppercase; }
+  .cab .cli { font-size:18px; font-weight:700; }
+  .badge { background:#e7f6ea; color:var(--ok); font-weight:700; font-size:11px; padding:2px 6px; border-radius:4px; margin-left:6px; }
+  .datos { display:grid; grid-template-columns:repeat(5, 1fr); gap:16px; padding:14px 0; border-top:1px solid var(--linea); border-bottom:1px solid var(--linea); margin-bottom:10px; }
+  .datos .k { font-size:11px; color:var(--gris); text-transform:uppercase; letter-spacing:.4px; margin-bottom:4px; }
+  .datos .v { font-weight:600; text-transform:uppercase; font-size:13px; }
+  .editable { border:0; background:transparent; font-weight:600; text-transform:uppercase; font-size:13px; padding:0; cursor:pointer; color:var(--texto); max-width:100%; }
+  .editable:focus { outline:1px dashed var(--azul); }
+  .lapiz { color:var(--gris); font-size:12px; margin-left:4px; }
+  details.contacto summary { color:var(--azul); cursor:pointer; font-size:13px; margin:6px 0 18px; }
+  details.contacto div { font-size:13px; color:var(--gris); margin:-10px 0 18px 14px; line-height:1.6; }
+  .titulo-prod { font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:.3px; margin:10px 0 6px; }
+  .agregar { border:1px dashed #b8c4d2; border-radius:6px; padding:12px; text-align:center; color:var(--azul); cursor:pointer; margin:10px 0; font-weight:600; background:#fff; width:100%; }
+  .agregar:hover { background:var(--azul-claro); }
+  .pie-totales { display:flex; justify-content:flex-end; gap:36px; margin:14px 0; text-align:center; }
+  .pie-totales .k { font-size:11px; color:var(--gris); }
+  .pie-totales .v { font-size:18px; font-weight:700; margin-top:4px; }
+  .pie-totales input { width:70px; text-align:center; padding:6px; border:1px solid var(--linea); border-radius:5px; margin-top:4px; }
+  /* Ventana de datos adicionales */
+  .velo { position:fixed; inset:0; background:rgba(15,25,40,.35); display:grid; place-items:center; z-index:50; }
+  .modal { background:#fff; border-radius:10px; padding:22px 24px; width:min(520px, 92vw); box-shadow:0 20px 50px rgba(0,0,0,.2); }
+  .modal h3 { margin:0 0 18px; font-size:18px; display:flex; justify-content:space-between; }
+  .modal .linea { display:grid; grid-template-columns:110px 1fr; gap:12px; align-items:start; margin-bottom:14px; }
+  .modal .linea label { font-size:12px; font-weight:600; color:var(--gris); text-transform:uppercase; padding-top:11px; text-align:right; }
+  .btn.rojo { background:var(--err); border-color:var(--err); color:#fff; }
+
+  @media (max-width: 760px) {
+    .datos { grid-template-columns:1fr 1fr; } .cab { flex-direction:column; gap:10px; }
+    .grid2 { grid-template-columns:1fr; }
+    .barra { gap:12px; padding:12px 14px; } .titulo { display:none; }
+    main { padding:16px 14px 40px; }
+    .ocultar-movil { display:none; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<header class="barra">
+  <div class="logo"><div class="logo-icono"></div>CODIMET</div>
+  <div class="titulo">Notas de Venta</div>
+  <div class="der" id="barraSesion" hidden>
+    <button class="enlace" id="btnNueva">+ Nuevo documento</button>
+    <button class="enlace" id="btnHistorial">Mis documentos</button>
+    <button class="enlace" id="btnPanelVend" hidden>Vendedores</button>
+    <div class="usuario"><div class="avatar" id="avatar"></div><div><b id="nombreUsuario"></b><small id="rolUsuario"></small></div></div>
+    <button class="enlace" id="btnSalir">Salir</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ===== Acceso ===== -->
+  <section id="vistaLogin" class="login" hidden>
+    <h2>Ingreso de vendedores</h2>
+    <div class="bloque">
+      <p class="etiqueta">Vendedor</p>
+      <select id="loginVendedor" class="campo"><option value="">Cargando vendedores…</option></select>
+    </div>
+    <div class="bloque">
+      <p class="etiqueta">Clave</p>
+      <input id="loginClave" type="password" class="campo" autocomplete="current-password">
+    </div>
+    <label class="chico" style="display:flex; gap:6px; align-items:center; margin-bottom:16px">
+      <input type="checkbox" id="loginAdmin"> Entrar con clave de administrador
+    </label>
+    <button id="btnEntrar" class="btn primario" style="width:100%">Entrar</button>
+    <div id="loginMsg"></div>
+  </section>
+
+  <!-- ===== Panel de vendedores (solo admin) ===== -->
+  <section id="panelVend" class="panel" hidden>
+    <h3>Vendedores y claves</h3>
+    <div id="panelMsg"></div>
+    <table>
+      <thead><tr><th>Vendedor</th><th>Acceso</th><th style="width:260px">Nueva clave</th><th style="width:220px"></th></tr></thead>
+      <tbody id="panelFilas"></tbody>
+    </table>
+    <p class="chico">Los vendedores se crean en KAME (maestro de vendedores) y aparecen aquí solos. Cambiar o quitar una clave cierra las sesiones abiertas de ese vendedor.</p>
+  </section>
+
+  <!-- ===== Paso 1: cliente y bodega ===== -->
+  <section id="vistaPaso1" hidden>
+    <div class="bloque">
+      <p class="etiqueta">Documento</p>
+      <div class="segmento" id="segTipo">
+        <button data-tipo="pedido" class="on">Nota de venta</button>
+        <button data-tipo="cotizacion">Cotización</button>
+      </div>
+    </div>
+    <div class="bloque">
+      <p class="etiqueta">Cliente</p>
+      <div class="buscador">
+        <input id="buscaCliente" class="campo" placeholder="Buscar por nombre, RUT o código…" autocomplete="off">
+        <div id="opcionesCliente" class="opciones" hidden></div>
+      </div>
+    </div>
+    <div id="clienteElegido" class="bloque" hidden>
+      <div class="tarjeta">
+        <div><b id="cliNombre"></b><div class="chico" id="cliDetalle"></div></div>
+        <button class="enlace" id="btnCambiarCliente">Cambiar</button>
+      </div>
+    </div>
+    <div class="grid2">
+      <div>
+        <p class="etiqueta">Bodega</p>
+        <select id="bodega" class="campo"><option value="">Elegir bodega…</option></select>
+      </div>
+      <div>
+        <p class="etiqueta">Centro de costo</p>
+        <div class="fijo">CASA MATRIZ</div>
+      </div>
+    </div>
+    <div id="paso1Msg"></div>
+    <div class="acciones">
+      <button id="btnContinuar" class="btn primario" disabled>🔒 Continuar con esta bodega</button>
+    </div>
+  </section>
+
+  <!-- ===== Paso 2: documento ===== -->
+  <section id="vistaPaso2" hidden>
+    <div class="cab">
+      <div><div class="k">Documento <span class="badge">NUEVO</span></div><div class="tipo" id="cabTipo"></div></div>
+      <div><div class="k">Cliente</div><div class="cli"><span id="cabRut"></span> <span style="color:var(--linea)">|</span> <span id="cabNombre"></span></div></div>
+      <button class="enlace" id="btnVolverPaso1" style="margin-left:auto">✎ Cambiar</button>
+    </div>
+
+    <div class="datos">
+      <div><div class="k">Bodega</div><select id="bodega2" class="editable"></select><span class="lapiz">✎</span></div>
+      <div><div class="k">Centro de costo</div><div class="v">Casa Matriz</div></div>
+      <div><div class="k">Forma de pago</div><button class="editable" id="btnPagos"><span id="resumenPago">—</span> <span class="lapiz">✎</span></button></div>
+      <div><div class="k">Ejecutivo</div><div class="v" id="ejecutivo"></div><select id="ejecutivoAdmin" class="editable" hidden></select></div>
+      <div><div class="k">Datos adicionales</div><button class="enlace" id="btnDatos">Comentarios ✎</button><div class="chico" id="resumenDatos"></div></div>
+    </div>
+    <div id="bloqueVigencia" class="chico" style="margin:-4px 0 8px">Vigencia de la cotización:
+      <input id="diasVigencia" type="number" min="1" value="15" style="width:56px"> días</div>
+    <div id="bloqueDesdeCot" class="chico" style="margin:-4px 0 8px" hidden>
+      Desde cotización N° <input id="cotOrigen" style="width:90px" inputmode="numeric"> <button id="btnCargarCot" class="enlace">Cargar</button>
+    </div>
+    <div id="cotMsg"></div>
+
+    <details class="contacto"><summary>Dirección y contacto del cliente</summary><div id="contactoCliente">—</div></details>
+
+    <div class="titulo-prod">Productos — stock en <span id="tituloBodega"></span></div>
+    <table>
+      <thead><tr>
+        <th style="width:110px">Código</th><th>Producto</th><th class="num ocultar-movil" style="width:80px">Stock</th>
+        <th class="num" style="width:90px">Cantidad</th><th style="width:45px">Un.</th>
+        <th class="num" style="width:120px">Precio</th><th class="num" style="width:80px">Dcto %</th>
+        <th class="num" style="width:110px">Subtotal</th><th style="width:30px"></th>
+      </tr></thead>
+      <tbody id="lineas"></tbody>
+    </table>
+    <button class="agregar" id="btnAgregar">⊕ Agregar producto</button>
+
+    <div class="pie-totales">
+      <div><div class="k">Líneas</div><div class="v" id="tLineas">0</div></div>
+      <div><div class="k">Productos</div><div class="v" id="tProductos">0</div></div>
+      <div><div class="k">Descuento total</div><input id="dctoGlobal" type="number" min="0" max="100" step="any" value="0"> %</div>
+      <div><div class="k">Neto</div><div class="v" id="tNeto">$0</div></div>
+      <div><div class="k">Total (IVA incl.)</div><div class="v" id="tTotal">$0</div></div>
+    </div>
+
+    <div class="bloque">
+      <p class="etiqueta">Comentario (opcional)</p>
+      <textarea id="comentario" class="campo" rows="2" placeholder="Ej: Cliente retira"></textarea>
+      <div class="chico">Se puede cambiar en cualquier momento antes de crear el documento.</div>
+    </div>
+
+    <div id="emitirMsg"></div>
+    <div class="acciones">
+      <button id="btnPDF" class="btn" disabled>🗎 Previsualizar PDF</button>
+      <button id="btnExcel" class="btn" disabled style="color:var(--ok)">⊞ Descargar Excel</button>
+      <button id="btnEmitir" class="btn primario" disabled>Emitir</button>
+      <button id="btnConfirmar" class="btn peligro" hidden>Confirmar: crear en KAME</button>
+      <button id="btnCancelarConf" class="btn" hidden>Cancelar</button>
+    </div>
+  </section>
+
+  <!-- Ventana: condiciones de pago -->
+  <div class="velo" id="modalPagos" hidden>
+    <div class="modal" style="width:min(640px, 94vw)">
+      <h3>Condiciones de pago <button class="enlace" id="btnCerrarPagos" style="color:var(--gris); font-size:20px">×</button></h3>
+      <p class="chico" style="margin-top:-6px">Puedes dividir el pago en varias condiciones (ej. mitad al contado, mitad a 30 días). Por defecto viene una sola línea con el total.</p>
+      <div id="lineasPago"></div>
+      <button class="enlace" id="btnAgregarPago" style="margin:6px 0 14px">+ Agregar línea</button>
+      <div style="display:flex; justify-content:space-between; font-size:14px">
+        <div>Total documento: <b id="pagoTotalDoc">$0</b></div>
+        <div>Suma líneas: <b id="pagoSuma">$0</b></div>
+      </div>
+      <div id="pagosMsg"></div>
+      <div class="acciones" style="margin-top:12px"><button class="btn primario" id="btnListoPagos">Listo</button></div>
+    </div>
+  </div>
+
+  <!-- Ventana: datos adicionales -->
+  <div class="velo" id="modalDatos" hidden>
+    <div class="modal">
+      <h3>Datos adicionales <button class="enlace" id="btnCerrarDatos" style="color:var(--gris); font-size:20px">×</button></h3>
+      <div class="linea"><label>Nro OC</label><input id="nroOC" class="campo" placeholder="Número de OC"></div>
+      <div class="linea"><label>Fecha OC</label><input id="fechaOC" class="campo" type="date"></div>
+      <div class="linea"><label>Comentarios</label><textarea id="comentarioModal" class="campo" rows="4" placeholder="Comentarios sobre este documento…"></textarea></div>
+      <div class="acciones" style="margin-top:8px">
+        <button class="btn rojo" id="btnCancelarDatos">Cancelar</button>
+        <button class="btn primario" id="btnGuardarDatos">✓ Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Resultado ===== -->
+  <section id="vistaResultado" hidden>
+    <div class="exito">
+      <div id="resTitulo" style="font-size:16px"></div>
+      <div class="folio" id="resFolio"></div>
+      <div id="resTexto" class="chico"></div>
+      <div class="acciones" style="justify-content:center">
+        <button id="btnNVdesdeCot" class="btn primario" hidden>Crear nota de venta desde esta cotización</button>
+        <button id="btnOtro" class="btn">Nuevo documento</button>
+      </div>
+    </div>
+    <details class="tecnico"><summary>Detalle técnico</summary><pre id="resTecnico"></pre></details>
+  </section>
+
+  <!-- ===== Historial ===== -->
+  <section id="vistaHistorial" hidden>
+    <h3 style="margin-top:0">Documentos emitidos</h3>
+    <table>
+      <thead><tr><th>Fecha</th><th>Tipo</th><th>Folio</th><th>Cliente</th><th class="ocultar-movil">Vendedor</th><th class="num">Total</th><th>Estado</th></tr></thead>
+      <tbody id="histFilas"></tbody>
+    </table>
+  </section>
+
+  <div class="pie">Codimet · Ventana de ventas conectada a KAME</div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const pesos = (n) => '$' + Math.round(n || 0).toLocaleString('es-CL');
+const leer = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+const API = (leer('kame_api_base', '') || 'https://kame-production-828c.up.railway.app').replace(/\/$/, '');
+const BODEGAS = ['Antofagasta', 'Renca', 'Concepcion'];
+
+function aviso(contenedor, tipo, texto) {
+  $(contenedor).innerHTML = texto ? `<div class="msg ${tipo}"></div>` : '';
+  if (texto) $(contenedor).firstChild.textContent = texto;
+}
+
+// ---------- Sesión ----------
+// { rol:'vendedor', vendedor, token } (se guarda) | { rol:'admin', vendedor, clave } (solo en memoria)
+let sesion = null;
+try { sesion = JSON.parse(localStorage.getItem('kame_sesion_ventas') || 'null'); } catch {}
+function guardarSesion() {
+  try {
+    if (sesion?.rol === 'vendedor') localStorage.setItem('kame_sesion_ventas', JSON.stringify(sesion));
+    else localStorage.removeItem('kame_sesion_ventas');
+  } catch {}
+}
+
+async function api(ruta, opciones = {}) {
+  const auth = sesion?.rol === 'vendedor' ? { Authorization: 'Bearer ' + sesion.token }
+             : sesion?.rol === 'admin' ? { 'x-clave': sesion.clave } : {};
+  const resp = await fetch(API + ruta, { ...opciones, headers: { 'Content-Type': 'application/json', ...auth, ...(opciones.headers || {}) } });
+  let cuerpo = null; try { cuerpo = await resp.json(); } catch {}
+  if (resp.status === 401 && sesion && !ruta.startsWith('/api/vendedores/entrar')) {
+    sesion = null; guardarSesion(); mostrarVista('login');
+    aviso('loginMsg', 'warn', 'Tu sesión venció. Vuelve a entrar.');
+  }
+  return { ok: resp.ok, status: resp.status, cuerpo };
+}
+
+// ---------- Vistas ----------
+const VISTAS = ['Login', 'Paso1', 'Paso2', 'Resultado', 'Historial'];
+function mostrarVista(nombre) {
+  VISTAS.forEach((v) => ($('vista' + v).hidden = v.toLowerCase() !== nombre.toLowerCase()));
+  $('barraSesion').hidden = !sesion;
+  if (!sesion) $('panelVend').hidden = true;
+  if (sesion) {
+    $('nombreUsuario').textContent = sesion.vendedor;
+    $('rolUsuario').textContent = sesion.rol === 'admin' ? 'Administrador' : 'Vendedor';
+    $('avatar').textContent = sesion.vendedor.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+    $('btnPanelVend').hidden = sesion.rol !== 'admin';
+  }
+  window.scrollTo(0, 0);
+}
+
+// ---------- Login ----------
+async function cargarVendedoresLogin() {
+  const r = await api('/api/vendedores');
+  const sel = $('loginVendedor');
+  if (!r.ok) { sel.innerHTML = '<option value="">No se pudo leer KAME</option>'; aviso('loginMsg', 'err', r.cuerpo?.error || 'No se pudo conectar'); return; }
+  sel.innerHTML = '<option value="">Elige tu nombre…</option>';
+  r.cuerpo.vendedores.forEach((v) => {
+    const o = document.createElement('option'); o.value = v.nombre;
+    o.textContent = v.nombre + (v.tieneClave ? '' : ' (sin clave)'); sel.appendChild(o);
+  });
+  const ultimo = leer('kame_ultimo_vendedor', '');
+  if (r.cuerpo.vendedores.some((v) => v.nombre === ultimo)) sel.value = ultimo;
+}
+
+$('btnEntrar').onclick = async () => {
+  const vendedor = $('loginVendedor').value, clave = $('loginClave').value;
+  if (!vendedor || !clave) { aviso('loginMsg', 'warn', 'Elige tu nombre y escribe tu clave.'); return; }
+  guardar('kame_ultimo_vendedor', vendedor);
+  if ($('loginAdmin').checked) {
+    sesion = { rol: 'admin', vendedor, clave };
+    const r = await api('/api/vendedores/sesion');
+    if (!r.ok || r.cuerpo?.rol !== 'admin') { sesion = null; aviso('loginMsg', 'err', 'Clave de administrador incorrecta.'); return; }
+  } else {
+    const r = await api('/api/vendedores/entrar', { method: 'POST', body: JSON.stringify({ vendedor, clave }) });
+    if (!r.ok) {
+      aviso('loginMsg', 'err', (r.cuerpo?.error || 'No se pudo entrar') + (r.status === 401 ? ' Si eres administrador, marca "Entrar con clave de administrador".' : ''));
+      return;
+    }
+    sesion = { rol: 'vendedor', vendedor: r.cuerpo.vendedor, token: r.cuerpo.token };
+  }
+  $('loginClave').value = ''; aviso('loginMsg', '', '');
+  guardarSesion(); nuevoDocumento();
+};
+$('loginClave').onkeydown = (e) => { if (e.key === 'Enter') $('btnEntrar').click(); };
+
+$('btnSalir').onclick = async () => {
+  if (sesion?.rol === 'vendedor') await api('/api/vendedores/salir', { method: 'POST' }).catch(() => {});
+  sesion = null; guardarSesion(); mostrarVista('login'); cargarVendedoresLogin();
+};
+
+// ---------- Estado del documento ----------
+let doc;
+function docVacio() {
+  return { cliente: null, ficha: null, bodega: leer('kame_ultima_bodega', ''), tipo: 'pedido', lineas: [], cotizacionOrigen: null, nroOC: '', fechaOC: '', ejecutivo: null };
+}
+
+function nuevoDocumento() {
+  doc = docVacio();
+  $('buscaCliente').value = ''; $('clienteElegido').hidden = true; $('buscaCliente').parentElement.parentElement.hidden = false;
+  $('bodega').value = BODEGAS.includes(doc.bodega) ? doc.bodega : '';
+  $('comentario').value = ''; $('cotOrigen').value = ''; aviso('cotMsg', '', ''); aviso('emitirMsg', '', ''); aviso('paso1Msg', '', '');
+  $('dctoGlobal').value = 0; $('resumenDatos').textContent = '';
+  pintarLineas(); validarPaso1(); elegirTipo('pedido');
+  mostrarVista('paso1');
+  setTimeout(() => $('buscaCliente').focus(), 50);
+}
+$('btnNueva').onclick = nuevoDocumento;
+$('btnOtro').onclick = nuevoDocumento;
+
+// ---------- Paso 1: cliente ----------
+function crearBuscador({ input, caja, buscar, render, elegir, minimo = 2, espera = 300 }) {
+  let t, items = [], activo = -1;
+  const marcar = () => {
+    [...caja.children].forEach((el, i) => el.classList.toggle('activo', i === activo));
+    caja.children[activo]?.scrollIntoView({ block: 'nearest' });
+  };
+  input.addEventListener('input', () => {
+    clearTimeout(t);
+    const q = input.value.trim();
+    if (q.length < minimo) { caja.hidden = true; return; }
+    t = setTimeout(async () => {
+      caja.innerHTML = '<div class="sub">Buscando…</div>'; caja.hidden = false;
+      const res = await buscar(q);
+      if (input.value.trim() !== q) return;
+      items = res; activo = -1; caja.innerHTML = '';
+      if (!items.length) { caja.innerHTML = '<div class="sub">Sin resultados</div>'; return; }
+      items.forEach((it) => {
+        const el = document.createElement('div'); render(el, it);
+        el.onmousedown = (e) => { e.preventDefault(); caja.hidden = true; elegir(it); };
+        caja.appendChild(el);
+      });
+    }, espera);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (caja.hidden || !items.length) return;
+    if (e.key === 'ArrowDown') { activo = Math.min(activo + 1, items.length - 1); marcar(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { activo = Math.max(activo - 1, 0); marcar(); e.preventDefault(); }
+    else if (e.key === 'Enter') { caja.hidden = true; elegir(items[Math.max(activo, 0)]); e.preventDefault(); }
+    else if (e.key === 'Escape') caja.hidden = true;
+  });
+  input.addEventListener('blur', () => setTimeout(() => (caja.hidden = true), 150));
+}
+
+crearBuscador({
+  input: $('buscaCliente'), caja: $('opcionesCliente'),
+  buscar: async (q) => (await api('/api/clientes/buscar?nombre=' + encodeURIComponent(q))).cuerpo?.coincidencias || [],
+  render: (el, c) => { el.innerHTML = '<div></div><div class="sub"></div>'; el.children[0].textContent = c.nombre; el.children[1].textContent = 'RUT ' + c.rut; },
+  elegir: (c) => elegirCliente(c.rut, c.nombre),
+});
+
+async function elegirCliente(rut, nombre) {
+  doc.cliente = { rut, nombre };
+  $('cliNombre').textContent = nombre || rut; $('cliDetalle').textContent = 'RUT ' + rut;
+  $('clienteElegido').hidden = false; $('buscaCliente').parentElement.parentElement.hidden = true;
+  validarPaso1();
+  // Completar con la ficha de KAME (dirección, giro) para que el vendedor confirme que es el correcto
+  const r = await api('/api/clientes/' + encodeURIComponent(rut));
+  const f = (Array.isArray(r.cuerpo?.ficha) ? r.cuerpo.ficha : r.cuerpo?.ficha?.items ?? [r.cuerpo?.ficha])[0];
+  if (f && doc.cliente?.rut === rut) {
+    doc.ficha = f;
+    doc.cliente.nombre = f.RznSocial || nombre;
+    $('cliNombre').textContent = doc.cliente.nombre;
+    $('cliDetalle').textContent = ['RUT ' + rut, f.Giro, [f.Direccion, f.Comuna, f.Ciudad].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
+  }
+}
+$('btnCambiarCliente').onclick = () => {
+  doc.cliente = null; doc.ficha = null; $('clienteElegido').hidden = true; $('buscaCliente').parentElement.parentElement.hidden = false;
+  $('buscaCliente').value = ''; $('buscaCliente').focus(); validarPaso1();
+};
+
+$('bodega').innerHTML = '<option value="">Elegir bodega…</option>' + BODEGAS.map((b) => `<option value="${b}">${b === 'Concepcion' ? 'Concepción' : b}</option>`).join('');
+$('bodega').onchange = () => { doc.bodega = $('bodega').value; guardar('kame_ultima_bodega', doc.bodega); validarPaso1(); };
+function validarPaso1() { $('btnContinuar').disabled = !(doc.cliente && doc.bodega); }
+
+const nombreBodega = (b) => (b === 'Concepcion' ? 'Concepción' : b);
+$('bodega2').innerHTML = BODEGAS.map((b) => `<option value="${b}">${nombreBodega(b)}</option>`).join('');
+
+function pintarCabecera() {
+  $('cabTipo').textContent = doc.tipo === 'pedido' ? 'Nota de venta' : 'Cotización';
+  $('cabRut').textContent = doc.cliente.rut; $('cabNombre').textContent = doc.cliente.nombre;
+  $('bodega2').value = doc.bodega; $('tituloBodega').textContent = nombreBodega(doc.bodega).toUpperCase();
+  // Ejecutivo: el vendedor que entró. El administrador puede elegir a cualquiera.
+  const admin = sesion.rol === 'admin';
+  $('ejecutivo').hidden = admin; $('ejecutivoAdmin').hidden = !admin;
+  $('ejecutivo').textContent = sesion.vendedor;
+  if (admin && !$('ejecutivoAdmin').options.length) {
+    api('/api/vendedores').then((r) => {
+      (r.cuerpo?.vendedores || []).forEach((v) => { const o = document.createElement('option'); o.value = o.textContent = v.nombre; $('ejecutivoAdmin').appendChild(o); });
+      $('ejecutivoAdmin').value = doc.ejecutivo || sesion.vendedor;
+    });
+  } else if (admin) $('ejecutivoAdmin').value = doc.ejecutivo || sesion.vendedor;
+  // Dirección y contacto desde la ficha de KAME
+  const f = doc.ficha || {};
+  const lineas = [
+    [f.Direccion, f.Comuna, f.Ciudad].filter(Boolean).join(', '),
+    f.Giro && 'Giro: ' + f.Giro,
+    f.Contacto && 'Contacto: ' + f.Contacto,
+    f.Telefono && 'Teléfono: ' + f.Telefono,
+    f.Email && 'Email: ' + f.Email,
+  ].filter(Boolean);
+  $('contactoCliente').innerHTML = '';
+  (lineas.length ? lineas : ['Sin datos de contacto en la ficha de KAME.']).forEach((t) => { const d = document.createElement('div'); d.textContent = t; d.style.margin = '0'; $('contactoCliente').appendChild(d); });
+}
+$('ejecutivoAdmin').onchange = () => { doc.ejecutivo = $('ejecutivoAdmin').value; };
+
+// Condición de pago por defecto: la asignada al cliente en su ficha de KAME, si la trae
+function condicionDelCliente() {
+  const f = doc.ficha || {};
+  const valor = f.CondicionVenta ?? f.CondicionPago ?? f.FormaPago ?? f.CodCondicionVenta ?? f.CodigoCondicionVenta ?? f.CondicionDeVenta;
+  if (valor == null || valor === '') return null;
+  const v = String(valor).trim().toLowerCase();
+  const encontrada = FORMAS.find((x) => x.codigo.toLowerCase() === v || x.nombre.trim().toLowerCase() === v);
+  return encontrada ? encontrada.codigo : null;
+}
+
+$('btnContinuar').onclick = () => {
+  doc.pagos = pagoPorDefecto(condicionDelCliente());
+  pintarResumenPago();
+  pintarCabecera(); pintarLineas();
+  doc.lineas.forEach(cargarStockLinea);
+  mostrarVista('paso2');
+};
+$('bodega2').onchange = () => {
+  doc.bodega = $('bodega2').value; $('bodega').value = doc.bodega; guardar('kame_ultima_bodega', doc.bodega);
+  $('tituloBodega').textContent = nombreBodega(doc.bodega).toUpperCase();
+  doc.lineas.forEach(cargarStockLinea);
+};
+$('btnVolverPaso1').onclick = () => mostrarVista('paso1');
+
+// ---------- Paso 2: tipo de documento ----------
+function elegirTipo(tipo) {
+  doc.tipo = tipo;
+  [...$('segTipo').children].forEach((b) => b.classList.toggle('on', b.dataset.tipo === tipo));
+  $('bloqueDesdeCot').hidden = tipo !== 'pedido';
+  $('bloqueVigencia').hidden = tipo !== 'cotizacion';
+  $('cabTipo').textContent = tipo === 'pedido' ? 'Nota de venta' : 'Cotización';
+  if (tipo === 'cotizacion') doc.cotizacionOrigen = null;
+  cancelarConfirmacion();
+}
+[...$('segTipo').children].forEach((b) => (b.onclick = () => elegirTipo(b.dataset.tipo)));
+
+// ---------- Condiciones de pago ----------
+// doc.pagos = [{ codigo, dias, monto }] — monto null = "el total" (una sola línea)
+let FORMAS = [{ codigo: '1', nombre: 'Contado', credito: false, dias: 0 }, { codigo: '2', nombre: 'Crédito', credito: true, dias: 30 }];
+async function cargarFormasPago() {
+  const r = await api('/api/documentos/formas-pago?refrescar=1');
+  if (r.cuerpo?.formas?.length) FORMAS = r.cuerpo.formas;
+}
+const forma = (codigo) => FORMAS.find((f) => f.codigo === String(codigo)) || FORMAS[0];
+function pagoPorDefecto(codigo) {
+  const f = forma(codigo ?? FORMAS[0].codigo);
+  return [{ codigo: f.codigo, dias: f.credito ? f.dias || 30 : 0, monto: null }];
+}
+function pintarResumenPago() {
+  if (!doc.pagos?.length) doc.pagos = pagoPorDefecto();
+  if (doc.pagos.length === 1) {
+    const f = forma(doc.pagos[0].codigo);
+    const yaDiceDias = new RegExp(`\\b${doc.pagos[0].dias}\\s*d[ií]as`, 'i').test(f.nombre);
+    $('resumenPago').textContent = f.nombre + (f.credito && !yaDiceDias ? ` · ${doc.pagos[0].dias} días` : '');
+  } else {
+    $('resumenPago').textContent = doc.pagos.map((p) => forma(p.codigo).nombre).join(' + ');
+  }
+}
+
+function totalEstimado() {
+  const neto = doc.lineas.filter((l) => l.sku).reduce((a, l) => a + netoLinea(l), 0);
+  return neto + Math.round(neto * 0.19);
+}
+let pagosEditando = [];
+function abrirPagos() {
+  const total = totalEstimado();
+  pagosEditando = doc.pagos.map((p) => ({ ...p, monto: p.monto ?? total }));
+  pintarLineasPago(); aviso('pagosMsg', '', ''); $('modalPagos').hidden = false;
+}
+function pintarLineasPago() {
+  $('pagoTotalDoc').textContent = pesos(totalEstimado());
+  $('lineasPago').innerHTML = '';
+  pagosEditando.forEach((p, i) => {
+    const fila = document.createElement('div');
+    fila.style.cssText = 'display:grid; grid-template-columns:1.4fr 90px 1fr 30px; gap:10px; margin-bottom:8px; align-items:center';
+    const sel = document.createElement('select'); sel.className = 'campo';
+    FORMAS.forEach((f) => { const o = document.createElement('option'); o.value = f.codigo; o.textContent = f.nombre; sel.appendChild(o); });
+    sel.value = p.codigo;
+    const dias = document.createElement('input'); dias.className = 'campo'; dias.type = 'number'; dias.min = 1; dias.title = 'Días de plazo';
+    dias.value = p.dias || 30; dias.style.visibility = forma(p.codigo).credito ? 'visible' : 'hidden';
+    const monto = document.createElement('input'); monto.className = 'campo'; monto.type = 'number'; monto.min = 0; monto.value = Math.round(p.monto || 0);
+    const quitar = document.createElement('button'); quitar.className = 'quitar'; quitar.textContent = '🗑'; quitar.title = 'Quitar línea';
+    quitar.style.visibility = pagosEditando.length > 1 ? 'visible' : 'hidden';
+    sel.onchange = () => { p.codigo = sel.value; const f = forma(sel.value); p.dias = f.credito ? f.dias || 30 : 0; pintarLineasPago(); };
+    dias.oninput = () => { p.dias = Number(dias.value) || 0; };
+    monto.oninput = () => { p.monto = Number(monto.value) || 0; sumaPagos(); };
+    quitar.onclick = () => { pagosEditando.splice(i, 1); pintarLineasPago(); };
+    fila.append(sel, dias, monto, quitar);
+    $('lineasPago').appendChild(fila);
+  });
+  sumaPagos();
+}
+function sumaPagos() {
+  const suma = pagosEditando.reduce((a, p) => a + (Number(p.monto) || 0), 0);
+  $('pagoSuma').textContent = pesos(suma);
+  $('pagoSuma').style.color = Math.abs(suma - totalEstimado()) > 2 ? 'var(--err)' : '';
+  return suma;
+}
+$('btnPagos').onclick = abrirPagos;
+$('btnCerrarPagos').onclick = () => ($('modalPagos').hidden = true);
+$('btnAgregarPago').onclick = () => {
+  const usado = pagosEditando.reduce((a, p) => a + (Number(p.monto) || 0), 0);
+  const resto = Math.max(0, totalEstimado() - usado);
+  pagosEditando.push({ ...pagoPorDefecto(pagosEditando[0]?.codigo)[0], monto: resto });
+  pintarLineasPago();
+};
+$('btnListoPagos').onclick = () => {
+  if (pagosEditando.length > 1 && Math.abs(sumaPagos() - totalEstimado()) > 2) {
+    aviso('pagosMsg', 'err', 'La suma de las líneas debe ser igual al total del documento.'); return;
+  }
+  doc.pagos = pagosEditando.length === 1 ? [{ ...pagosEditando[0], monto: null }] : pagosEditando.map((p) => ({ ...p }));
+  pintarResumenPago(); $('modalPagos').hidden = true;
+};
+
+// ---------- Productos ----------
+let catalogo = null;
+async function obtenerCatalogo() {
+  if (catalogo) return catalogo;
+  const r = await api('/api/stock');
+  const d = r.cuerpo?.datos;
+  catalogo = Array.isArray(d) ? d : (d?.items ?? d?.data ?? []);
+  return catalogo;
+}
+async function buscarProductos(q) {
+  const ql = q.toLowerCase();
+  return (await obtenerCatalogo())
+    .filter((p) => String(p.SKU ?? '').toLowerCase().includes(ql) || String(p.articulo ?? '').toLowerCase().includes(ql))
+    .slice(0, 30);
+}
+function pintarOpcionProducto(el, p) {
+  el.innerHTML = '<div></div><div class="sub"></div>';
+  el.children[0].textContent = p.articulo || p.SKU;
+  el.children[1].textContent = `SKU ${p.SKU} · Stock total ${Number(p.saldo ?? 0).toLocaleString('es-CL')} · ${pesos(p.precioVentaNeto)} neto`;
+}
+// "Agregar producto" crea una fila vacía con el buscador dentro (como en Coditec)
+$('btnAgregar').onclick = () => {
+  if (doc.lineas.some((l) => !l.sku)) { document.querySelector('#lineas .busca-fila')?.focus(); return; }
+  doc.lineas.push({ sku: '', nombre: '', cantidad: 1, precio: 0, dcto: Number($('dctoGlobal').value) || 0, unidad: 'UN', stock: null });
+  pintarLineas();
+  document.querySelector('#lineas .busca-fila')?.focus();
+};
+
+function agregarLinea(l) {
+  doc.lineas = doc.lineas.filter((x) => x.sku);
+  const existente = doc.lineas.find((x) => x.sku === l.sku);
+  if (existente) { existente.cantidad += l.cantidad; pintarLineas(); return; }
+  l.stock = null; doc.lineas.push(l); pintarLineas(); cargarStockLinea(l);
+}
+
+async function cargarStockLinea(l) {
+  if (!doc.bodega) return;
+  l.stock = '…'; pintarLineas();
+  // KAME pide el stock por bodega con el NOMBRE del artículo
+  const r = await api(`/api/stock/articulo/${encodeURIComponent(l.nombre)}/bodega/${encodeURIComponent(doc.bodega)}`);
+  l.stock = r.ok && r.cuerpo?.saldo != null ? Number(r.cuerpo.saldo) : null;
+  pintarLineas();
+}
+
+function pintarLineas() {
+  const tb = $('lineas'); tb.innerHTML = '';
+  if (!doc.lineas.length) {
+    tb.innerHTML = '<tr><td colspan="9" class="chico" style="padding:18px 8px">Todavía no agregaste productos.</td></tr>';
+  }
+  doc.lineas.forEach((l, i) => {
+    const tr = document.createElement('tr');
+    const bajo = typeof l.stock === 'number' && l.stock < l.cantidad;
+    tr.innerHTML = `<td class="c chico"></td><td class="n"></td>
+      <td class="num ocultar-movil ${bajo ? 'stock-bajo' : ''}">${l.stock == null ? '—' : typeof l.stock === 'number' ? l.stock.toLocaleString('es-CL') : l.stock}</td>
+      <td><input class="cant" type="number" min="0" step="any" value="${l.cantidad}"></td>
+      <td class="chico u"></td>
+      <td><input class="precio" type="number" min="0" step="any" value="${l.precio}"></td>
+      <td><input class="dcto" type="number" min="0" max="100" step="any" value="${l.dcto}"></td>
+      <td class="num tot"></td><td><button class="quitar" title="Quitar">×</button></td>`;
+    tr.querySelector('.c').textContent = l.sku;
+    if (!l.sku) {
+      // Fila nueva: buscador de producto dentro de la celda
+      const celda = tr.querySelector('.n');
+      celda.innerHTML = '<div class="buscador"><input class="campo busca-fila" placeholder="Buscar por código o glosa…" autocomplete="off" style="padding:7px 10px"><div class="opciones" hidden></div></div>';
+      crearBuscador({
+        input: celda.querySelector('input'), caja: celda.querySelector('.opciones'), espera: 200,
+        buscar: buscarProductos, render: pintarOpcionProducto,
+        elegir: (p) => agregarLinea({ sku: p.SKU, nombre: p.articulo || p.SKU, cantidad: l.cantidad || 1, precio: Number(p.precioVentaNeto) || 0, dcto: l.dcto, unidad: p.unidadMedida || 'UN' }),
+      });
+    } else tr.querySelector('.n').textContent = l.nombre;
+    tr.querySelector('.u').textContent = l.unidad || 'UN';
+    tr.querySelector('.cant').oninput = (e) => { l.cantidad = Number(e.target.value) || 0; recalcular(); };
+    // Al cambiar la cantidad solo se actualiza el aviso de stock de esa fila (sin redibujar la tabla,
+    // para no perder el cursor si el vendedor pasa con Tab a la siguiente)
+    tr.querySelector('.cant').onchange = () => {
+      const celda = tr.children[2];
+      celda.classList.toggle('stock-bajo', typeof l.stock === 'number' && l.stock < l.cantidad);
+    };
+    tr.querySelector('.precio').oninput = (e) => { l.precio = Number(e.target.value) || 0; recalcular(); };
+    tr.querySelector('.dcto').oninput = (e) => { l.dcto = Math.min(100, Number(e.target.value) || 0); recalcular(); };
+    tr.querySelector('.quitar').onclick = () => { doc.lineas.splice(i, 1); pintarLineas(); };
+    tb.appendChild(tr);
+  });
+  recalcular();
+}
+
+// Descuento total: aplica el mismo % a todas las líneas (se puede ajustar línea por línea después)
+$('dctoGlobal').onchange = () => {
+  const d = Math.min(100, Math.max(0, Number($('dctoGlobal').value) || 0));
+  doc.lineas.forEach((l) => (l.dcto = d)); pintarLineas();
+};
+
+function netoLinea(l) { const b = l.cantidad * l.precio; return Math.round(b - Math.round(b * l.dcto / 100)); }
+function recalcular() {
+  [...$('lineas').querySelectorAll('tr')].forEach((tr, i) => { const l = doc.lineas[i]; if (l) tr.querySelector('.tot').textContent = pesos(netoLinea(l)); });
+  const validas = doc.lineas.filter((l) => l.sku);
+  const neto = validas.reduce((a, l) => a + netoLinea(l), 0), iva = Math.round(neto * 0.19);
+  $('tNeto').textContent = pesos(neto); $('tTotal').textContent = pesos(neto + iva);
+  $('tLineas').textContent = validas.length;
+  $('tProductos').textContent = validas.reduce((a, l) => a + (Number(l.cantidad) || 0), 0).toLocaleString('es-CL');
+  $('btnEmitir').disabled = $('btnPDF').disabled = $('btnExcel').disabled = !validas.length;
+  if (doc.pagos?.length > 1) {
+    const suma = doc.pagos.reduce((a, p) => a + (Number(p.monto) || 0), 0);
+    $('resumenPago').style.color = Math.abs(suma - (neto + iva)) > 2 ? 'var(--err)' : '';
+  }
+  $('btnEmitir').textContent = doc.tipo === 'pedido' ? '✓ Crear nota de venta' : '✓ Crear cotización';
+  cancelarConfirmacion();
+}
+
+// ---------- Datos adicionales (N° OC, fecha OC, comentarios) ----------
+function abrirDatos() {
+  $('nroOC').value = doc.nroOC; $('fechaOC').value = doc.fechaOC; $('comentarioModal').value = $('comentario').value;
+  $('modalDatos').hidden = false; $('nroOC').focus();
+}
+function cerrarDatos() { $('modalDatos').hidden = true; }
+function pintarResumenDatos() {
+  const partes = [];
+  if (doc.nroOC) partes.push('OC ' + doc.nroOC + (doc.fechaOC ? ' · ' + doc.fechaOC.split('-').reverse().join('-') : ''));
+  if ($('comentario').value.trim()) partes.push('con comentario');
+  $('resumenDatos').textContent = partes.join(' · ');
+}
+$('btnDatos').onclick = abrirDatos;
+$('btnCerrarDatos').onclick = cerrarDatos;
+$('btnCancelarDatos').onclick = cerrarDatos;
+$('btnGuardarDatos').onclick = () => {
+  doc.nroOC = $('nroOC').value.trim(); doc.fechaOC = $('fechaOC').value;
+  $('comentario').value = $('comentarioModal').value; pintarResumenDatos(); cerrarDatos();
+};
+$('comentario').oninput = pintarResumenDatos;
+$('modalDatos').onclick = (e) => { if (e.target === $('modalDatos')) cerrarDatos(); };
+
+// ---------- Desde cotización ----------
+async function cargarCotizacion(folio) {
+  aviso('cotMsg', 'warn', `Buscando la cotización N° ${folio} en KAME…`);
+  const r = await api(`/api/documentos/cotizacion/${encodeURIComponent(folio)}`);
+  const d = r.cuerpo?.doc;
+  if (!r.ok || !d) { aviso('cotMsg', 'err', `No se encontró la cotización N° ${folio} en KAME.`); return false; }
+  const rut = d.Rut ?? d.rut;
+  if (rut && rut !== doc.cliente?.rut) {
+    doc.cliente = { rut, nombre: d.RznSocial ?? d.RazonSocial ?? rut }; doc.ficha = null;
+  }
+  const bodega = d.Bodega ?? d.bodega;
+  if (BODEGAS.includes(bodega)) { doc.bodega = bodega; $('bodega').value = bodega; }
+  const fp = String(d.FormaPago ?? d.formaPago ?? '');
+  if (FORMAS.some((f) => f.codigo === fp)) { doc.pagos = pagoPorDefecto(fp); pintarResumenPago(); }
+  const detalle = d.Detalle ?? d.detalle ?? d.Items ?? d.items ?? [];
+  doc.lineas = detalle.map((l) => ({
+    sku: String(l.Articulo ?? l.SKU ?? l.Sku ?? l.articulo ?? ''),
+    nombre: l.Descripcion ?? l.descripcion ?? String(l.Articulo ?? ''),
+    cantidad: Number(l.Cantidad ?? l.cantidad ?? 1),
+    precio: Number(l.PrecioUnitario ?? l.Precio ?? l.precioUnitario ?? 0),
+    dcto: Number(l.PorcDescuento ?? l.porcDescuento ?? 0),
+    unidad: l.UnidadMedida ?? 'UN',
+    stock: null,
+  }));
+  pintarCabecera();
+  pintarLineas(); doc.lineas.forEach(cargarStockLinea);
+  doc.cotizacionOrigen = String(folio);
+  aviso('cotMsg', detalle.length ? 'ok' : 'warn', detalle.length
+    ? `Cotización N° ${folio} cargada (${detalle.length} productos). Revisa y emite la nota de venta.`
+    : `Se encontró la cotización N° ${folio}, pero KAME no trajo sus productos.`);
+  return true;
+}
+$('btnCargarCot').onclick = () => { const f = $('cotOrigen').value.trim(); if (f) cargarCotizacion(f); };
+$('cotOrigen').onkeydown = (e) => { if (e.key === 'Enter') $('btnCargarCot').click(); };
+
+// ---------- Emitir (con confirmación en dos pasos) ----------
+function cancelarConfirmacion() { $('btnConfirmar').hidden = true; $('btnCancelarConf').hidden = true; $('btnEmitir').hidden = false; }
+$('btnCancelarConf').onclick = cancelarConfirmacion;
+
+function cuerpoDocumento(enviar) {
+  const p0 = doc.pagos[0], f0 = forma(p0.codigo);
+  return {
+    rut: doc.cliente.rut, vendedor: sesion.rol === 'admin' ? (doc.ejecutivo || sesion.vendedor) : sesion.vendedor, bodega: doc.bodega,
+    formaPago: p0.codigo, esCredito: f0.credito, diasCredito: p0.dias || 30,
+    pagos: doc.pagos.map((p) => ({ codigo: p.codigo, credito: forma(p.codigo).credito, dias: p.dias, monto: p.monto })),
+    diasVigencia: Number($('diasVigencia').value || 15),
+    cotizacionOrigen: doc.tipo === 'pedido' ? doc.cotizacionOrigen : null,
+    comentario: [doc.nroOC && `OC N° ${doc.nroOC}${doc.fechaOC ? ' del ' + doc.fechaOC.split('-').reverse().join('-') : ''}`, $('comentario').value.trim()].filter(Boolean).join('. '),
+    emitidoPor: sesion.vendedor,
+    items: doc.lineas.filter((l) => l.sku && l.cantidad > 0).map((l) => ({ articulo: l.sku, descripcion: l.nombre, cantidad: l.cantidad, precioUnitario: l.precio, descuentoPct: l.dcto })),
+    enviar,
+  };
+}
+
+$('btnEmitir').onclick = async () => {
+  if (doc.pagos.length > 1) {
+    const suma = doc.pagos.reduce((a, p) => a + (Number(p.monto) || 0), 0);
+    if (Math.abs(suma - totalEstimado()) > doc.pagos.length * 2) {
+      aviso('emitirMsg', 'err', 'Las condiciones de pago no suman el total del documento. Ajústalas en "Forma de pago".'); return;
+    }
+  }
+  // Primero una vista previa: valida cliente, vendedor y productos contra KAME sin crear nada
+  aviso('emitirMsg', 'warn', 'Validando con KAME…'); $('btnEmitir').disabled = true;
+  const r = await api('/api/documentos/' + doc.tipo, { method: 'POST', body: JSON.stringify(cuerpoDocumento(false)) });
+  $('btnEmitir').disabled = false;
+  if (!r.ok) { aviso('emitirMsg', 'err', r.cuerpo?.error || 'No se pudo validar el documento'); return; }
+  const nombre = doc.tipo === 'pedido' ? 'nota de venta' : 'cotización';
+  aviso('emitirMsg', 'warn', `Se creará una ${nombre} en KAME para ${r.cuerpo.payload.RznSocial || doc.cliente.nombre} por ${pesos(r.cuerpo.payload.total)} (IVA incluido). ¿Confirmas?`);
+  $('btnEmitir').hidden = true; $('btnConfirmar').hidden = false; $('btnCancelarConf').hidden = false;
+};
+
+$('btnConfirmar').onclick = async () => {
+  $('btnConfirmar').disabled = true; $('btnCancelarConf').disabled = true;
+  aviso('emitirMsg', 'warn', 'Creando en KAME y verificando… (puede tardar unos segundos)');
+  try {
+    const r = await api('/api/documentos/' + doc.tipo, { method: 'POST', body: JSON.stringify(cuerpoDocumento(true)) });
+    const c = r.cuerpo || {};
+    if (!r.ok && r.status !== 202) { aviso('emitirMsg', 'err', c.error || 'KAME rechazó el documento'); $('btnEmitir').hidden = true; return; }
+    mostrarResultado(c);
+  } finally {
+    $('btnConfirmar').disabled = false; $('btnCancelarConf').disabled = false;
+  }
+};
+
+function mostrarResultado(c) {
+  const esCot = doc.tipo === 'cotizacion';
+  $('resTecnico').textContent = JSON.stringify(c, null, 2);
+  if (c.estado === 'confirmado') {
+    $('resTitulo').textContent = esCot ? 'Cotización creada en KAME' : 'Nota de venta creada en KAME';
+    $('resFolio').textContent = 'N° ' + c.folio;
+    $('resTexto').textContent = `${doc.cliente.nombre} · Total ${pesos(c.total)}`;
+  } else {
+    $('resTitulo').textContent = 'KAME respondió, pero no se pudo confirmar';
+    $('resFolio').textContent = c.folio ? 'N° ' + c.folio : '—';
+    $('resTexto').textContent = c.mensaje || 'Revisa en el ERP si el documento existe antes de darlo por hecho.';
+  }
+  $('btnNVdesdeCot').hidden = !(esCot && c.folio);
+  $('btnNVdesdeCot').onclick = async () => {
+    const folio = c.folio;
+    const cliente = doc.cliente, bodega = doc.bodega;
+    const ficha = doc.ficha;
+    doc = docVacio(); doc.cliente = cliente; doc.bodega = bodega; doc.ficha = ficha;
+    $('comentario').value = ''; aviso('emitirMsg', '', ''); pintarResumenDatos();
+    elegirTipo('pedido'); $('cotOrigen').value = folio;
+    pintarCabecera(); mostrarVista('paso2');
+    await cargarCotizacion(folio);
+  };
+  mostrarVista('resultado');
+}
+
+// ---------- Previsualizar PDF y descargar Excel ----------
+function datosDocumento() {
+  const validas = doc.lineas.filter((l) => l.sku);
+  const neto = validas.reduce((a, l) => a + netoLinea(l), 0), iva = Math.round(neto * 0.19);
+  return {
+    tipo: doc.tipo === 'pedido' ? 'Nota de venta' : 'Cotización',
+    fecha: new Date().toLocaleDateString('es-CL'),
+    cliente: doc.cliente, ficha: doc.ficha || {}, bodega: nombreBodega(doc.bodega),
+    ejecutivo: sesion.rol === 'admin' ? (doc.ejecutivo || sesion.vendedor) : sesion.vendedor,
+    pago: $('resumenPago').textContent,
+    oc: doc.nroOC ? `${doc.nroOC}${doc.fechaOC ? ' del ' + doc.fechaOC.split('-').reverse().join('-') : ''}` : '',
+    comentario: $('comentario').value.trim(), lineas: validas, neto, iva, total: neto + iva,
+    vigencia: doc.tipo === 'cotizacion' ? Number($('diasVigencia').value || 15) : null,
+  };
+}
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+$('btnPDF').onclick = () => {
+  const d = datosDocumento();
+  const w = window.open('', '_blank');
+  if (!w) { aviso('emitirMsg', 'warn', 'El navegador bloqueó la ventana. Permite ventanas emergentes para este sitio.'); return; }
+  const filas = d.lineas.map((l) => `<tr><td>${esc(l.sku)}</td><td>${esc(l.nombre)}</td><td class="n">${Number(l.cantidad).toLocaleString('es-CL')}</td><td>${esc(l.unidad || 'UN')}</td>
+    <td class="n">${pesos(l.precio)}</td><td class="n">${l.dcto ? l.dcto + '%' : ''}</td><td class="n">${pesos(netoLinea(l))}</td></tr>`).join('');
+  const f = d.ficha;
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${d.tipo} - ${esc(d.cliente.nombre)}</title>
+  <style>body{font:12px "Segoe UI",Arial,sans-serif;color:#1f2a37;margin:32px} h1{font-size:20px;margin:0;color:#0f4f96}
+  .top{display:flex;justify-content:space-between;border-bottom:2px solid #1769c2;padding-bottom:10px;margin-bottom:14px}
+  .borrador{color:#b42318;font-weight:700;font-size:11px;letter-spacing:1px} table{width:100%;border-collapse:collapse;margin-top:12px}
+  th{background:#e8f1fb;text-align:left;padding:6px;font-size:11px} td{padding:6px;border-bottom:1px solid #e5e9ef} .n{text-align:right;white-space:nowrap}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px} .k{color:#6b7685} .tot{margin-left:auto;width:260px;margin-top:12px}
+  .tot div{display:flex;justify-content:space-between;padding:3px 0} .tot .t{font-weight:700;font-size:14px;border-top:1px solid #ccc;padding-top:6px}
+  @media print{.noprint{display:none} body{margin:12mm}}</style></head><body>
+  <div class="noprint" style="margin-bottom:16px"><button onclick="print()">Imprimir / Guardar como PDF</button></div>
+  <div class="top"><div><h1>CODIMET</h1><div class="k">Casa Matriz</div></div>
+  <div style="text-align:right"><h1>${d.tipo}</h1><div class="borrador">BORRADOR — AÚN NO CREADA EN KAME</div><div>${d.fecha}</div></div></div>
+  <div class="grid">
+    <div><span class="k">Cliente:</span> <b>${esc(d.cliente.nombre)}</b></div><div><span class="k">RUT:</span> ${esc(d.cliente.rut)}</div>
+    <div><span class="k">Dirección:</span> ${esc([f.Direccion, f.Comuna, f.Ciudad].filter(Boolean).join(', '))}</div><div><span class="k">Giro:</span> ${esc(f.Giro)}</div>
+    <div><span class="k">Ejecutivo:</span> ${esc(d.ejecutivo)}</div><div><span class="k">Bodega:</span> ${esc(d.bodega)}</div>
+    <div><span class="k">Forma de pago:</span> ${esc(d.pago)}</div><div>${d.oc ? '<span class="k">OC:</span> ' + esc(d.oc) : ''}</div>
+    ${d.vigencia ? `<div><span class="k">Vigencia:</span> ${d.vigencia} días</div>` : ''}
+  </div>
+  <table><thead><tr><th>Código</th><th>Producto</th><th class="n">Cant.</th><th>Un.</th><th class="n">Precio</th><th class="n">Dcto</th><th class="n">Subtotal</th></tr></thead><tbody>${filas}</tbody></table>
+  <div class="tot"><div><span>Neto</span><span>${pesos(d.neto)}</span></div><div><span>IVA 19%</span><span>${pesos(d.iva)}</span></div>
+  <div class="t"><span>Total</span><span>${pesos(d.total)}</span></div></div>
+  ${d.comentario ? `<p><span class="k">Comentario:</span> ${esc(d.comentario)}</p>` : ''}
+  </body></html>`);
+  w.document.close();
+};
+
+$('btnExcel').onclick = () => {
+  if (typeof XLSX === 'undefined') { aviso('emitirMsg', 'err', 'No se pudo cargar el generador de Excel. Revisa tu conexión.'); return; }
+  const d = datosDocumento();
+  const filas = [
+    [d.tipo + ' (borrador)'], ['Fecha', d.fecha], ['Cliente', d.cliente.nombre], ['RUT', d.cliente.rut], ['Bodega', d.bodega],
+    ['Ejecutivo', d.ejecutivo], ['Forma de pago', d.pago], ['OC', d.oc], ['Comentario', d.comentario], [],
+    ['Código', 'Producto', 'Cantidad', 'Un.', 'Precio neto', 'Dcto %', 'Subtotal neto'],
+    ...d.lineas.map((l) => [l.sku, l.nombre, l.cantidad, l.unidad || 'UN', l.precio, l.dcto, netoLinea(l)]),
+    [], ['', '', '', '', '', 'Neto', d.neto], ['', '', '', '', '', 'IVA 19%', d.iva], ['', '', '', '', '', 'Total', d.total],
+  ];
+  const hoja = XLSX.utils.aoa_to_sheet(filas);
+  hoja['!cols'] = [{ wch: 14 }, { wch: 44 }, { wch: 10 }, { wch: 6 }, { wch: 14 }, { wch: 9 }, { wch: 16 }];
+  const libro = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(libro, hoja, d.tipo.slice(0, 30));
+  const nombre = `${d.tipo.replace(/\s+/g, '_')}_${d.cliente.nombre.replace(/[^\w]+/g, '_').slice(0, 30)}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(libro, nombre);
+};
+
+// ---------- Historial ----------
+$('btnHistorial').onclick = async () => {
+  mostrarVista('historial');
+  $('histFilas').innerHTML = '<tr><td colspan="7" class="chico">Cargando…</td></tr>';
+  const r = await api('/api/documentos/historial');
+  const filas = r.cuerpo?.items || [];
+  $('histFilas').innerHTML = filas.length ? '' : '<tr><td colspan="7" class="chico">Aún no hay documentos emitidos desde esta ventana.</td></tr>';
+  const estados = { confirmado: 'Confirmado', sin_confirmar: 'Revisar en ERP', rechazado: 'Rechazado', sin_folio: 'Revisar en ERP' };
+  filas.forEach((f) => {
+    const tr = document.createElement('tr');
+    [f.fecha?.slice(0, 16), f.tipo === 'pedido' ? 'Nota de venta' : 'Cotización', f.folio || '—', f.rzn_social || f.rut, f.vendedor, pesos(f.total), estados[f.estado] || f.estado]
+      .forEach((v, i) => { const td = document.createElement('td'); td.textContent = v ?? ''; if (i === 5) td.className = 'num'; if (i === 4) td.className = 'ocultar-movil'; tr.appendChild(td); });
+    $('histFilas').appendChild(tr);
+  });
+};
+
+// ---------- Panel de vendedores (admin) ----------
+$('btnPanelVend').onclick = () => { $('panelVend').hidden = !$('panelVend').hidden; if (!$('panelVend').hidden) cargarPanel(); };
+async function cargarPanel(msg) {
+  const r = await api('/api/vendedores?refrescar=1');
+  if (!r.ok) { aviso('panelMsg', 'err', r.cuerpo?.error || 'No se pudieron leer los vendedores'); return; }
+  if (msg) aviso('panelMsg', msg[0], msg[1]);
+  else aviso('panelMsg', r.cuerpo.baseDatosPersistente ? '' : 'warn', r.cuerpo.baseDatosPersistente ? '' : 'Atención: no hay volumen conectado en Railway. Las claves se borrarán en el próximo despliegue.');
+  $('panelFilas').innerHTML = '';
+  r.cuerpo.vendedores.forEach((v) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="n"></td><td>${v.tieneClave ? '<b style="color:var(--ok)">Con clave</b>' : '<span style="color:var(--warn)">Sin clave</span>'}</td>
+      <td><input type="password" class="nueva" placeholder="mínimo 6 caracteres" autocomplete="new-password"></td>
+      <td style="display:flex; gap:6px"><button class="btn primario guardar">Guardar</button>${v.tieneClave ? '<button class="btn quitarAcc">Quitar acceso</button>' : ''}</td>`;
+    tr.querySelector('.n').textContent = v.nombre;
+    tr.querySelector('.guardar').onclick = async () => {
+      const r2 = await api('/api/vendedores/clave', { method: 'PUT', body: JSON.stringify({ vendedor: v.nombre, clave: tr.querySelector('.nueva').value }) });
+      r2.ok ? cargarPanel(['ok', `Clave guardada para ${v.nombre}.`]) : aviso('panelMsg', 'err', r2.cuerpo?.error || 'Error');
+    };
+    const q = tr.querySelector('.quitarAcc');
+    if (q) q.onclick = async () => {
+      const r2 = await api('/api/vendedores/clave', { method: 'DELETE', body: JSON.stringify({ vendedor: v.nombre }) });
+      r2.ok ? cargarPanel(['ok', `Acceso quitado a ${v.nombre}.`]) : aviso('panelMsg', 'err', r2.cuerpo?.error || 'Error');
+    };
+    $('panelFilas').appendChild(tr);
+  });
+}
+
+// ---------- Inicio ----------
+(async function iniciar() {
+  doc = docVacio();
+  cargarFormasPago();
+  obtenerCatalogo();
+  if (sesion?.rol === 'vendedor') {
+    const r = await api('/api/vendedores/sesion');
+    if (r.ok) { nuevoDocumento(); return; }
+    sesion = null; guardarSesion();
+  }
+  mostrarVista('login');
+  cargarVendedoresLogin();
+})();
+</script>
+</body>
+</html>

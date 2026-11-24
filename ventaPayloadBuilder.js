@@ -55,7 +55,8 @@ function construirLinea(item) {
     Descuento: descuento,
     Total: clp(bruto - descuento),
     UnidadMedida: item.unidadMedida || "UN",
-    UnidadNegocio: item.unidadNegocio || "",
+    // Codimet tiene un solo centro de costo: Casa Matriz
+    UnidadNegocio: item.unidadNegocio || process.env.KAME_UNIDAD_NEGOCIO || "CASA MATRIZ",
     Articulo: item.articulo,
     PorcDescuento: descuentoPct,
     DescripcionDetallada: item.descripcionDetallada || "",
@@ -153,9 +154,35 @@ async function construirBase(input, resolvers, tipo) {
   }
 
   const totales = calcularTotales(detalle);
-  // Crédito sin cuotas explícitas: una sola cuota por el total al plazo indicado
+  // Varias condiciones de pago (ej. mitad contado, mitad a 30 días): cada
+  // línea se envía como una cuota con su monto y su fecha (hoy si es
+  // contado, fecha + días si es crédito). FormaPago queda como la primera
+  // condición a crédito, porque KAME exige cuotas solo en crédito.
+  let formaPagoFinal = String(formaPago);
   let cuotasKame = null;
-  if (esCredito) {
+  const pagos = Array.isArray(input.pagos) ? input.pagos.filter((p) => p && p.codigo) : [];
+  if (pagos.length > 1 || (pagos.length === 1 && pagos[0].credito)) {
+    let montos = pagos.map((p) => (p.monto == null || p.monto === "" ? null : clp(Number(p.monto))));
+    if (pagos.length === 1) montos = [totales.total];
+    if (montos.some((m) => m == null || !(m > 0))) {
+      throw new VentaPayloadError("Cada condición de pago debe tener un monto mayor a 0", "pagos");
+    }
+    const suma = montos.reduce((a, m) => a + m, 0);
+    const diferencia = totales.total - suma;
+    // Diferencias de redondeo de pocos pesos se ajustan en la última línea
+    if (Math.abs(diferencia) > pagos.length * 2) {
+      throw new VentaPayloadError(`Las condiciones de pago suman ${suma} pero el total es ${totales.total}`, "pagos");
+    }
+    montos[montos.length - 1] += diferencia;
+    const credito = pagos.find((p) => p.credito);
+    formaPagoFinal = String((credito || pagos[0]).codigo);
+    cuotasKame = construirCuotas(
+      pagos.map((p, i) => ({ fechaPago: sumarDias(fecha, p.credito ? Number(p.dias) || 30 : 0), montoPago: montos[i] })),
+      totales.total
+    );
+  } else if (pagos.length === 1) {
+    formaPagoFinal = String(pagos[0].codigo);
+  } else if (esCredito) {
     const lista =
       Array.isArray(cuotas) && cuotas.length
         ? cuotas
@@ -184,7 +211,7 @@ async function construirBase(input, resolvers, tipo) {
     Email: ficha.Email || "",
     Fecha: `${fecha}T00:00:00`,
     Comentario: comentarioFinal,
-    FormaPago: String(formaPago),
+    FormaPago: formaPagoFinal,
     ...totales,
     Bodega: bodega,
     EsInventariable: "S",
