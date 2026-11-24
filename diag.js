@@ -10,16 +10,12 @@ const base = "/Inventario/getInformeInventario";
 const nov = "fechaDesde=2026-11-01&fechaHasta=2026-11-24";
 
 const CASOS = [
-  ["nov_sin_filtro", `${base}?page=1&per_page=500&${nov}`],
-  ["nov_pag2", `${base}?page=2&per_page=500&${nov}`],
-  ["sku_minus", `${base}?page=1&per_page=500&${nov}&sku=700030`],
-  ["Sku_mayus", `${base}?page=1&per_page=500&${nov}&Sku=700030`],
-  ["articulo", `${base}?page=1&per_page=500&${nov}&articulo=TUBO-BRUNIDO-32x42`],
-  ["bodega", `${base}?page=1&per_page=500&${nov}&bodega=Renca`],
-  ["Bodega_mayus", `${base}?page=1&per_page=500&${nov}&Bodega=Renca`],
-  ["rango_60d", `${base}?page=1&per_page=5&fechaDesde=2026-09-25&fechaHasta=2026-11-24`],
-  ["rango_1ano", `${base}?page=1&per_page=5&fechaDesde=2025-11-24&fechaHasta=2026-11-24`],
-  ["per_page_2000", `${base}?page=1&per_page=2000&${nov}`],
+  ["sku_otro", `${base}?page=1&per_page=1000&fechaDesde=2025-11-24&fechaHasta=2026-11-24&sku=577864`],
+  ["Sku_otro", `${base}?page=1&per_page=1000&fechaDesde=2025-11-24&fechaHasta=2026-11-24&Sku=577864`],
+  ["desde_2015", `${base}?page=1&per_page=1000&fechaDesde=2015-01-01&fechaHasta=2026-11-24`],
+  ["oct_2026", `${base}?page=1&per_page=1000&fechaDesde=2026-10-01&fechaHasta=2026-10-31`],
+  ["stock_700030", `/Inventario/getStockArticulo/TUBO-BRUNIDO-32x42`],
+  ["ventas_nov", `/Documento/getInformeVentas?page=1&per_page=100&fechaDesde=2026-10-25&fechaHasta=2026-11-24`],
 ];
 
 function resumir(datos) {
