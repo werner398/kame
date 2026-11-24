@@ -281,6 +281,20 @@
     </div>
   </section>
 
+  <!-- Ventana: ver documento emitido -->
+  <div class="velo" id="modalDoc" hidden>
+    <div class="modal" style="width:min(900px, 96vw); max-height:92vh; overflow:auto">
+      <h3><span id="docTitulo"></span> <button class="enlace" id="btnCerrarDoc" style="color:var(--gris); font-size:20px">×</button></h3>
+      <div id="docOrigen" class="chico" style="margin:-10px 0 12px"></div>
+      <div id="docCuerpo"></div>
+      <div class="acciones">
+        <button class="btn" id="btnDocImprimir">🗎 Imprimir / PDF</button>
+        <button class="btn primario" id="btnDocNV" hidden>Crear nota de venta desde esta cotización</button>
+      </div>
+      <details class="tecnico"><summary>Detalle técnico (respuesta de KAME)</summary><pre id="docTecnico"></pre></details>
+    </div>
+  </div>
+
   <!-- Ventana: condiciones de pago -->
   <div class="velo" id="modalPagos" hidden>
     <div class="modal" style="width:min(640px, 94vw)">
@@ -926,16 +940,7 @@ function mostrarResultado(c) {
     $('resTexto').textContent = c.mensaje || 'Revisa en el ERP si el documento existe antes de darlo por hecho.';
   }
   $('btnNVdesdeCot').hidden = !(esCot && c.folio);
-  $('btnNVdesdeCot').onclick = async () => {
-    const folio = c.folio;
-    const cliente = doc.cliente, bodega = doc.bodega;
-    const ficha = doc.ficha;
-    doc = docVacio(); doc.cliente = cliente; doc.bodega = bodega; doc.ficha = ficha;
-    $('comentario').value = ''; aviso('emitirMsg', '', ''); pintarResumenDatos();
-    elegirTipo('pedido'); $('cotOrigen').value = folio;
-    pintarCabecera(); mostrarVista('paso2');
-    await cargarCotizacion(folio);
-  };
+  $('btnNVdesdeCot').onclick = () => notaDesdeCotizacion(c.folio, doc.cliente.rut, doc.cliente.nombre, doc.bodega);
   mostrarVista('resultado');
 }
 
@@ -1017,7 +1022,18 @@ $('btnHistorial').onclick = async () => {
   filas.forEach((f) => {
     const tr = document.createElement('tr');
     [f.fecha?.slice(0, 16), f.tipo === 'pedido' ? 'Nota de venta' : 'Cotización', f.folio || '—', f.rzn_social || f.rut, f.vendedor, pesos(f.total), estados[f.estado] || f.estado]
-      .forEach((v, i) => { const td = document.createElement('td'); td.textContent = v ?? ''; if (i === 5) td.className = 'num'; if (i === 4) td.className = 'ocultar-movil'; tr.appendChild(td); });
+      .forEach((v, i) => {
+        const td = document.createElement('td');
+        if (i === 2 && f.folio) {
+          // Folio: enlace que abre el documento como quedó en KAME
+          const b = document.createElement('button'); b.className = 'enlace oc-link'; b.textContent = f.folio;
+          b.title = 'Ver ' + (f.tipo === 'pedido' ? 'nota de venta' : 'cotización') + ' N° ' + f.folio;
+          b.onclick = () => verDocumento(f.id);
+          td.appendChild(b);
+        } else td.textContent = v ?? '';
+        if (i === 5) td.className = 'num'; if (i === 4) td.className = 'ocultar-movil';
+        tr.appendChild(td);
+      });
     // Columna OC: el número (azul y con manito si hay archivo para ver)
     const tdOC = document.createElement('td');
     const adj = f.adjuntos || [];
@@ -1036,6 +1052,127 @@ $('btnHistorial').onclick = async () => {
     tr.appendChild(tdOC);
     $('histFilas').appendChild(tr);
   });
+};
+
+// ---------- Ver un documento emitido (leído desde KAME) ----------
+let docViendo = null;
+const fechaCL = (t) => { const m = String(t || '').match(/(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : (t || ''); };
+
+function normalizarDocumento(r) {
+  // Se prefiere lo que devuelve KAME; si un campo no viene, se usa lo que se envió
+  const k = r.docKame || {}, e = r.enviado || {};
+  const v = (...xs) => xs.find((x) => x != null && x !== '');
+  const detalle = v(k.Detalle, k.detalle, k.Items, k.items) || e.Detalle || [];
+  const forma = String(v(k.FormaPago, e.FormaPago) ?? '');
+  return {
+    tipo: r.registro.tipo, folio: r.registro.folio,
+    cliente: v(k.RznSocial, k.RazonSocial, e.RznSocial, r.registro.rzn_social), rut: v(k.Rut, e.Rut, r.registro.rut),
+    direccion: [v(k.Direccion, e.Direccion), v(k.Comuna, e.Comuna), v(k.Ciudad, e.Ciudad)].filter(Boolean).join(', '),
+    giro: v(k.Giro, e.Giro), fecha: fechaCL(v(k.Fecha, e.Fecha)), vigencia: fechaCL(v(k.FechaVigencia, e.FechaVigencia)),
+    vendedor: v(k.Vendedor, e.Vendedor, r.registro.vendedor), bodega: v(k.Bodega, e.Bodega),
+    glosa: v(k.Comentario, k.Glosa, e.Comentario), observaciones: v(k.Observaciones, k.Observacion, e.Observaciones),
+    formaPago: forma === '2' ? 'Crédito' : forma === '1' ? 'Contado' : forma,
+    cuotas: v(k.Cuotas, e.Cuotas) || [],
+    lineas: detalle.map((l) => ({
+      sku: v(l.Articulo, l.SKU, l.Sku, l.articulo) ?? '', nombre: v(l.Descripcion, l.descripcion, l.Articulo) ?? '',
+      cantidad: Number(v(l.Cantidad, l.cantidad) ?? 0), unidad: v(l.UnidadMedida, l.UM) ?? 'UN',
+      precio: Number(v(l.PrecioUnitario, l.Precio) ?? 0), dcto: Number(v(l.PorcDescuento, l.porcDescuento) ?? 0),
+      total: Number(v(l.Total, l.total) ?? 0),
+    })),
+    afecto: Number(v(k.Afecto, e.Afecto) ?? 0), iva: Number(v(k.ValorImpto1, k.IVA, k.Iva, e.ValorImpto1) ?? 0),
+    total: Number(v(k.Total, k.total, e.total, r.registro.total) ?? 0),
+    oc: r.registro.nro_oc ? r.registro.nro_oc + (r.registro.fecha_oc ? ' del ' + fechaCL(r.registro.fecha_oc) : '') : '',
+    adjuntos: r.adjuntos || [], registroId: r.registro.id,
+  };
+}
+
+async function verDocumento(registroId) {
+  $('docTitulo').textContent = 'Cargando…'; $('docCuerpo').innerHTML = ''; $('docOrigen').textContent = '';
+  $('btnDocNV').hidden = true; $('modalDoc').hidden = false;
+  const r = await api('/api/documentos/registro/' + registroId);
+  if (!r.ok) { $('docTitulo').textContent = 'No se pudo abrir'; $('docCuerpo').textContent = r.cuerpo?.error || 'Error'; return; }
+  const d = normalizarDocumento(r.cuerpo);
+  docViendo = d;
+  $('docTitulo').textContent = `${d.tipo === 'pedido' ? 'Nota de venta' : 'Cotización'} N° ${d.folio}`;
+  $('docOrigen').textContent = r.cuerpo.docKame ? '✓ Datos leídos desde KAME en este momento.'
+    : `KAME no devolvió el documento${r.cuerpo.errorKame ? ' (' + r.cuerpo.errorKame + ')' : ''}: se muestra lo que se envió.`;
+  $('docTecnico').textContent = JSON.stringify(r.cuerpo.docKame ?? r.cuerpo.errorKame ?? null, null, 2);
+
+  const c = $('docCuerpo');
+  const fila = (k, val) => val ? `<div><span class="chico">${k}</span><div style="font-weight:600">${esc(val)}</div></div>` : '';
+  c.innerHTML = `
+    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px 20px; margin-bottom:14px">
+      ${fila('Cliente', d.cliente)}${fila('RUT', d.rut)}${fila('Fecha', d.fecha)}
+      ${fila('Dirección', d.direccion)}${fila('Giro', d.giro)}${fila(d.tipo === 'cotizacion' ? 'Vigencia' : '', d.tipo === 'cotizacion' ? d.vigencia : '')}
+      ${fila('Vendedor', d.vendedor)}${fila('Bodega', d.bodega)}${fila('Forma de pago', d.formaPago)}
+    </div>
+    <table><thead><tr><th>Código</th><th>Producto</th><th class="num">Cant.</th><th>Un.</th><th class="num">Precio</th><th class="num">Dcto %</th><th class="num">Total</th></tr></thead>
+    <tbody>${d.lineas.map((l) => `<tr><td class="chico">${esc(l.sku)}</td><td>${esc(l.nombre)}</td><td class="num">${l.cantidad.toLocaleString('es-CL')}</td>
+      <td class="chico">${esc(l.unidad)}</td><td class="num">${pesos(l.precio)}</td><td class="num">${l.dcto || ''}</td><td class="num">${pesos(l.total)}</td></tr>`).join('')
+      || '<tr><td colspan="7" class="chico">KAME no trajo el detalle de productos.</td></tr>'}</tbody></table>
+    <div class="totales"><div><span>Neto</span><span>${pesos(d.afecto)}</span></div><div><span>IVA 19%</span><span>${pesos(d.iva)}</span></div>
+      <div class="total"><span>Total</span><span>${pesos(d.total)}</span></div></div>
+    ${d.cuotas.length ? `<p class="chico">Cuotas: ${d.cuotas.map((q) => `${fechaCL(q.FechaPago ?? q.fechaPago)} ${pesos(q.MontoPago ?? q.montoPago)}`).join(' · ')}</p>` : ''}
+    ${fila('Glosa', d.glosa)}${d.observaciones ? '<div style="margin-top:10px"></div>' + fila('Observaciones', d.observaciones) : ''}
+    <div id="docOC" style="margin-top:10px"></div>`;
+  if (d.oc || d.adjuntos.length) {
+    const box = $('docOC'); box.innerHTML = '<span class="chico">OC</span> ';
+    if (d.oc) box.append(document.createTextNode(d.oc + ' '));
+    d.adjuntos.forEach((a) => { const b = document.createElement('button'); b.className = 'enlace oc-link'; b.textContent = 'Ver archivo'; b.title = a.nombre; b.onclick = () => verAdjunto(d.registroId, a.id); box.appendChild(b); });
+  }
+  $('btnDocNV').hidden = d.tipo !== 'cotizacion';
+}
+$('btnCerrarDoc').onclick = () => ($('modalDoc').hidden = true);
+$('modalDoc').onclick = (e) => { if (e.target === $('modalDoc')) $('modalDoc').hidden = true; };
+
+$('btnDocImprimir').onclick = () => {
+  const d = docViendo; if (!d) return;
+  const w = window.open('', '_blank'); if (!w) return;
+  const titulo = `${d.tipo === 'pedido' ? 'Nota de venta' : 'Cotización'} N° ${d.folio}`;
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${titulo} - ${esc(d.cliente)}</title>
+  <style>body{font:12px "Segoe UI",Arial,sans-serif;color:#1f2a37;margin:32px} h1{font-size:20px;margin:0;color:#0f4f96}
+  .top{display:flex;justify-content:space-between;border-bottom:2px solid #1769c2;padding-bottom:10px;margin-bottom:14px}
+  table{width:100%;border-collapse:collapse;margin-top:12px} th{background:#e8f1fb;text-align:left;padding:6px;font-size:11px}
+  td{padding:6px;border-bottom:1px solid #e5e9ef} .n{text-align:right;white-space:nowrap} .grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px}
+  .k{color:#6b7685} .tot{margin-left:auto;width:260px;margin-top:12px} .tot div{display:flex;justify-content:space-between;padding:3px 0}
+  .tot .t{font-weight:700;font-size:14px;border-top:1px solid #ccc;padding-top:6px} @media print{.noprint{display:none} body{margin:12mm}}</style></head><body>
+  <div class="noprint" style="margin-bottom:16px"><button onclick="print()">Imprimir / Guardar como PDF</button></div>
+  <div class="top"><div><h1>CODIMET</h1><div class="k">Casa Matriz</div></div><div style="text-align:right"><h1>${titulo}</h1><div>${esc(d.fecha)}</div></div></div>
+  <div class="grid">
+    <div><span class="k">Cliente:</span> <b>${esc(d.cliente)}</b></div><div><span class="k">RUT:</span> ${esc(d.rut)}</div>
+    <div><span class="k">Dirección:</span> ${esc(d.direccion)}</div><div><span class="k">Giro:</span> ${esc(d.giro)}</div>
+    <div><span class="k">Vendedor:</span> ${esc(d.vendedor)}</div><div><span class="k">Bodega:</span> ${esc(d.bodega)}</div>
+    <div><span class="k">Forma de pago:</span> ${esc(d.formaPago)}</div><div>${d.oc ? '<span class="k">OC:</span> ' + esc(d.oc) : ''}</div>
+    ${d.tipo === 'cotizacion' && d.vigencia ? `<div><span class="k">Vigencia hasta:</span> ${esc(d.vigencia)}</div>` : ''}
+  </div>
+  <table><thead><tr><th>Código</th><th>Producto</th><th class="n">Cant.</th><th>Un.</th><th class="n">Precio</th><th class="n">Dcto</th><th class="n">Total</th></tr></thead><tbody>
+  ${d.lineas.map((l) => `<tr><td>${esc(l.sku)}</td><td>${esc(l.nombre)}</td><td class="n">${l.cantidad.toLocaleString('es-CL')}</td><td>${esc(l.unidad)}</td><td class="n">${pesos(l.precio)}</td><td class="n">${l.dcto ? l.dcto + '%' : ''}</td><td class="n">${pesos(l.total)}</td></tr>`).join('')}
+  </tbody></table>
+  <div class="tot"><div><span>Neto</span><span>${pesos(d.afecto)}</span></div><div><span>IVA 19%</span><span>${pesos(d.iva)}</span></div><div class="t"><span>Total</span><span>${pesos(d.total)}</span></div></div>
+  ${d.glosa ? `<p><span class="k">Glosa:</span> ${esc(d.glosa)}</p>` : ''}${d.observaciones ? `<p><span class="k">Observaciones:</span> ${esc(d.observaciones)}</p>` : ''}
+  </body></html>`);
+  w.document.close();
+};
+
+// Crear nota de venta a partir de una cotización (desde la pantalla final o desde Mis documentos)
+async function notaDesdeCotizacion(folio, rut, nombre, bodega) {
+  doc = docVacio();
+  doc.cliente = { rut, nombre }; doc.bodega = BODEGAS.includes(bodega) ? bodega : (doc.bodega || BODEGAS[0]);
+  $('bodega').value = doc.bodega;
+  $('comentario').value = ''; aviso('emitirMsg', '', ''); aviso('cotMsg', '', ''); pintarResumenDatos();
+  $('dctoGlobal').value = 0;
+  const rf = await api('/api/clientes/' + encodeURIComponent(rut));
+  doc.ficha = rf.cuerpo?.fichaNormalizada || null;
+  if (doc.ficha?.RznSocial) doc.cliente.nombre = doc.ficha.RznSocial;
+  doc.pagos = pagoPorDefecto(condicionDelCliente()); pintarResumenPago();
+  elegirTipo('pedido'); $('cotOrigen').value = folio;
+  pintarCabecera(); pintarLineas(); mostrarVista('paso2');
+  await cargarCotizacion(folio);
+}
+$('btnDocNV').onclick = () => {
+  const d = docViendo; if (!d) return;
+  $('modalDoc').hidden = true;
+  notaDesdeCotizacion(d.folio, d.rut, d.cliente, d.bodega);
 };
 
 // Abre el adjunto en otra pestaña (se pide con la sesión, por eso no es un enlace directo)

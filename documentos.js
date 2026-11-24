@@ -311,9 +311,10 @@ router.get("/historial", exigirAcceso, (req, res) => {
 });
 
 // GET /api/documentos/:tipo/:folio — leer una cotización o nota de venta de KAME
-router.get("/:tipo/:folio", async (req, res) => {
+router.get("/:tipo/:folio", async (req, res, next) => {
   const { tipo, folio } = req.params;
-  if (!TIPOS[tipo]) return res.status(404).json({ error: "Tipo debe ser cotizacion o pedido" });
+  // Otras rutas de dos tramos (ej. /registro/:id) siguen de largo
+  if (!TIPOS[tipo]) return next();
   try {
     const r = await leerDocumento(tipo, folio);
     res.status(r.doc ? 200 : 404).json(r);
@@ -449,6 +450,31 @@ function documentoPermitido(req, id) {
   if (req.acceso.rol === "vendedor" && fila.vendedor !== req.acceso.vendedor) return null;
   return fila;
 }
+
+// GET /api/documentos/registro/:id — un documento emitido: lo que se envió,
+// cómo quedó en KAME (leído en vivo) y sus adjuntos.
+router.get("/registro/:id", exigirAcceso, async (req, res) => {
+  const permitido = documentoPermitido(req, Number(req.params.id));
+  if (!permitido) return res.status(404).json({ error: "Documento no encontrado" });
+  const fila = db.prepare("SELECT * FROM documentos_emitidos WHERE id = ?").get(permitido.id);
+  const adjuntos = db.prepare("SELECT id, nombre FROM adjuntos_documento WHERE documento_id = ?").all(fila.id);
+  let docKame = null, errorKame = null;
+  if (fila.folio && TIPOS[fila.tipo]) {
+    try { docKame = (await leerDocumento(fila.tipo, fila.folio)).doc; }
+    catch (e) { errorKame = e.message; }
+  }
+  res.json({
+    registro: {
+      id: fila.id, tipo: fila.tipo, folio: fila.folio, estado: fila.estado, vendedor: fila.vendedor,
+      rut: fila.rut, rzn_social: fila.rzn_social, total: fila.total, fecha: fila.fecha,
+      nro_oc: fila.nro_oc, fecha_oc: fila.fecha_oc, error: fila.error,
+    },
+    enviado: fila.payload ? JSON.parse(fila.payload) : null,
+    docKame,
+    errorKame,
+    adjuntos,
+  });
+});
 
 // POST /api/documentos/registro/:id/adjunto  { nombre, tipo, base64 }
 router.post("/registro/:id/adjunto", exigirAcceso, (req, res) => {
