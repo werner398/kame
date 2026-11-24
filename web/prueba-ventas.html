@@ -61,13 +61,23 @@
     </div>
     <div id="sesionActiva" class="fila" hidden>
       <span>Emitiendo como <b id="quien"></b></span>
-      <a id="lnkAdmin" href="admin-vendedores.html" target="_blank" hidden>Administrar claves de vendedores</a>
+      <button id="btnVendedores" hidden>Vendedores</button>
       <button id="btnSalir">Salir</button>
     </div>
     <div id="estadoConexion" class="chico" style="margin-top:6px"></div>
     <details class="chico" style="margin-top:6px"><summary>Backend</summary>
       <div class="fila" style="margin-top:4px"><input id="api" style="flex:1"><button id="btnRecargar">Recargar vendedores</button></div>
     </details>
+  </fieldset>
+
+  <fieldset id="panelVendedores" hidden>
+    <legend>Vendedores y claves</legend>
+    <div id="avisoVend"></div>
+    <table>
+      <thead><tr><th>Vendedor</th><th style="width:100px">Acceso</th><th style="width:300px">Nueva clave</th><th style="width:120px"></th></tr></thead>
+      <tbody id="filasVend"></tbody>
+    </table>
+    <p class="chico">Los vendedores se crean en KAME (maestro de vendedores) y aparecen aquí solos. Cambiar o quitar la clave cierra las sesiones abiertas de ese vendedor.</p>
   </fieldset>
 
   <fieldset>
@@ -210,7 +220,8 @@ async function cargarVendedores(refrescar) {
 function pintarSesion() {
   $('formAcceso').hidden = !!sesion;
   $('sesionActiva').hidden = !sesion;
-  $('lnkAdmin').hidden = sesion?.rol !== 'admin';
+  $('btnVendedores').hidden = sesion?.rol !== 'admin';
+  if (sesion?.rol !== 'admin') $('panelVendedores').hidden = true;
   if (sesion) $('quien').textContent = sesion.vendedor + (sesion.rol === 'admin' ? ' (administrador)' : '');
   document.querySelectorAll('#btnVista, #btnHistorial').forEach((b) => (b.disabled = !sesion));
   $('btnEmitir').disabled = !sesion || !$('confirmo').checked;
@@ -246,6 +257,48 @@ $('btnSalir').onclick = async () => {
   sesion = null; guardarSesion(); pintarSesion();
 };
 $('btnRecargar').onclick = () => cargarVendedores(true);
+
+// ---- Administración de claves (solo administrador) ----
+function avisoVend(tipo, texto) {
+  $('avisoVend').innerHTML = texto ? `<div class="msg ${tipo}"></div>` : '';
+  if (texto) $('avisoVend').firstChild.textContent = texto;
+}
+
+async function cargarPanelVendedores(mensaje) {
+  const r = await api('/api/vendedores?refrescar=1');
+  if (!r.ok) { avisoVend('err', r.cuerpo?.error || 'No se pudieron leer los vendedores de KAME'); return; }
+  if (mensaje) avisoVend(mensaje[0], mensaje[1]);
+  else if (!r.cuerpo.baseDatosPersistente) avisoVend('warn', 'Atención: no hay volumen conectado en Railway. Las claves se borrarán en el próximo despliegue.');
+  else avisoVend('', '');
+  const tb = $('filasVend'); tb.innerHTML = '';
+  if (!r.cuerpo.vendedores.length) { tb.innerHTML = '<tr><td colspan="4">KAME no tiene vendedores creados.</td></tr>'; return; }
+  r.cuerpo.vendedores.forEach((v) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="n"></td><td>${v.tieneClave ? '<b style="color:var(--ok)">Con clave</b>' : '<span style="color:var(--warn)">Sin clave</span>'}</td>
+      <td><div class="fila"><input type="password" class="nueva" placeholder="mínimo 6 caracteres" style="flex:1" autocomplete="new-password">
+      <button class="guardar primario">Guardar</button></div></td>
+      <td>${v.tieneClave ? '<button class="quitar">Quitar acceso</button>' : ''}</td>`;
+    tr.querySelector('.n').textContent = v.nombre;
+    tr.querySelector('.guardar').onclick = async () => {
+      const r2 = await api('/api/vendedores/clave', { method: 'PUT', body: JSON.stringify({ vendedor: v.nombre, clave: tr.querySelector('.nueva').value }) });
+      if (r2.ok) { cargarPanelVendedores(['ok', `Clave guardada para ${v.nombre}.`]); cargarVendedores(false); }
+      else avisoVend('err', r2.cuerpo?.error || 'Error');
+    };
+    const q = tr.querySelector('.quitar');
+    if (q) q.onclick = async () => {
+      const r2 = await api('/api/vendedores/clave', { method: 'DELETE', body: JSON.stringify({ vendedor: v.nombre }) });
+      if (r2.ok) { cargarPanelVendedores(['ok', `Acceso quitado a ${v.nombre}.`]); cargarVendedores(false); }
+      else avisoVend('err', r2.cuerpo?.error || 'Error');
+    };
+    tb.appendChild(tr);
+  });
+}
+
+$('btnVendedores').onclick = () => {
+  const abrir = $('panelVendedores').hidden;
+  $('panelVendedores').hidden = !abrir;
+  if (abrir) cargarPanelVendedores();
+};
 
 $('tipo').onchange = () => { $('lblVigencia').style.display = $('tipo').value === 'cotizacion' ? '' : 'none'; };
 
