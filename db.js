@@ -59,6 +59,25 @@ db.exec(`
     usuario TEXT NOT NULL,
     fecha_actualizacion TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- Cotizaciones y notas de venta emitidas desde el dashboard hacia KAME,
+  -- con lo que se envió, lo que KAME respondió y si se pudo confirmar.
+  CREATE TABLE IF NOT EXISTS documentos_emitidos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL,
+    folio TEXT,
+    vendedor TEXT,
+    rut TEXT,
+    rzn_social TEXT,
+    total REAL,
+    estado TEXT NOT NULL,
+    emitido_por TEXT,
+    payload TEXT,
+    respuesta TEXT,
+    verificacion TEXT,
+    error TEXT,
+    fecha TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // Migración: si la tabla proveedores_producto ya existía de antes (sin la

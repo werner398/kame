@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba de emisión — Cotizaciones y notas de venta</title>
+<style>
+  :root { --borde:#8a9bb0; --fondo:#ece9d8; --azul:#0a246a; --ok:#1e7b34; --warn:#9a6700; --err:#b42318; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:13px Tahoma, Verdana, sans-serif; background:var(--fondo); color:#111; }
+  header { background:linear-gradient(#0a246a,#3a6ea5); color:#fff; padding:10px 16px; }
+  header h1 { margin:0; font-size:16px; }
+  header p { margin:4px 0 0; font-size:12px; opacity:.9; }
+  main { max-width:980px; margin:0 auto; padding:14px; display:grid; gap:12px; }
+  fieldset { border:1px solid var(--borde); background:#fff; padding:10px 12px 12px; margin:0; }
+  legend { color:var(--azul); font-weight:bold; padding:0 4px; }
+  .fila { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+  label { display:flex; flex-direction:column; gap:3px; font-size:12px; }
+  input, select, textarea { font:inherit; padding:4px 6px; border:1px solid #7f9db9; background:#fff; }
+  textarea { width:100%; }
+  button { font:inherit; padding:5px 14px; border:1px solid #003c74; border-radius:3px;
+           background:linear-gradient(#fff,#e3e3db); cursor:pointer; }
+  button:hover { background:linear-gradient(#fff,#d6e4f5); }
+  button.primario { background:linear-gradient(#5b8fd6,#2a5ea8); color:#fff; }
+  button:disabled { opacity:.5; cursor:default; }
+  table { width:100%; border-collapse:collapse; margin-top:6px; }
+  th, td { border:1px solid #c5ccd6; padding:4px 6px; text-align:left; }
+  th { background:#dfe6f0; font-weight:normal; }
+  tbody tr:nth-child(even) td { background:#f6f8fb; }
+  td input { width:100%; }
+  .num { text-align:right; }
+  .chico { font-size:11px; color:#555; }
+  .resultados { position:absolute; background:#fff; border:1px solid var(--borde); max-height:220px;
+                overflow:auto; z-index:5; min-width:320px; }
+  .resultados div { padding:4px 8px; cursor:pointer; }
+  .resultados div:hover { background:#d6e4f5; }
+  .msg { padding:8px 10px; border-left:4px solid; margin-bottom:8px; background:#f8f8f8; }
+  .msg.ok { border-color:var(--ok); } .msg.warn { border-color:var(--warn); } .msg.err { border-color:var(--err); }
+  pre { background:#1e1e1e; color:#ddd; padding:10px; overflow:auto; max-height:380px; font-size:11px; margin:0; }
+  .totales { margin-top:8px; text-align:right; }
+  .totales b { display:inline-block; min-width:110px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Prueba de emisión: cotizaciones y notas de venta</h1>
+  <p>Página temporal para verificar que KAME guarda los documentos creados por la API. No emite facturas ni boletas.</p>
+</header>
+<main>
+
+  <fieldset>
+    <legend>Acceso</legend>
+    <div class="fila">
+      <label>Clave de emisión<input id="clave" type="password" size="24" autocomplete="off"></label>
+      <label>Emitido por<input id="emitidoPor" size="18" placeholder="tu nombre"></label>
+      <label style="flex:1">Backend<input id="api"></label>
+      <button id="btnConectar">Conectar</button>
+    </div>
+    <div id="estadoConexion" class="chico" style="margin-top:6px"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Documento</legend>
+    <div class="fila">
+      <label>Tipo
+        <select id="tipo">
+          <option value="cotizacion">Cotización</option>
+          <option value="pedido">Nota de venta</option>
+        </select>
+      </label>
+      <label style="position:relative">Cliente (nombre o RUT)
+        <input id="buscaCliente" size="34" autocomplete="off">
+        <div id="resClientes" class="resultados" hidden></div>
+      </label>
+      <label>RUT<input id="rut" size="14"></label>
+      <label>Vendedor<select id="vendedor"><option value="">— cargar —</option></select></label>
+      <label>Bodega<select id="bodega"></select></label>
+      <label>Pago
+        <select id="formaPago"><option value="1">Contado</option></select>
+      </label>
+      <label id="lblVigencia">Vigencia (días)<input id="diasVigencia" type="number" value="15" min="1" style="width:70px"></label>
+    </div>
+    <div id="clienteNombre" class="chico" style="margin-top:6px"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Productos</legend>
+    <table>
+      <thead><tr><th style="width:130px">SKU</th><th>Descripción</th><th style="width:90px">Stock bodega</th>
+        <th style="width:80px">Cantidad</th><th style="width:110px">Precio neto</th><th style="width:70px">Desc. %</th>
+        <th style="width:110px" class="num">Total neto</th><th style="width:30px"></th></tr></thead>
+      <tbody id="lineas"></tbody>
+    </table>
+    <div class="fila" style="margin-top:8px; justify-content:space-between">
+      <button id="btnLinea">+ Agregar producto</button>
+      <div class="totales">Neto: <b id="tNeto">$0</b> IVA: <b id="tIva">$0</b> Total: <b id="tTotal">$0</b></div>
+    </div>
+    <p class="chico">El total definitivo lo calcula el backend; este es solo de referencia.</p>
+    <label>Comentario<textarea id="comentario" rows="2">PRUEBA API — NO PROCESAR</textarea></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Emitir</legend>
+    <div class="fila">
+      <button id="btnVista">Vista previa (no envía nada)</button>
+      <label style="flex-direction:row; align-items:center; gap:6px">
+        <input type="checkbox" id="confirmo"> Entiendo que esto crea un documento real en KAME
+      </label>
+      <button id="btnEmitir" class="primario" disabled>Emitir en KAME</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Resultado</legend>
+    <div id="mensaje"></div>
+    <pre id="salida">—</pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>Consultar documento en KAME</legend>
+    <div class="fila">
+      <label>Tipo<select id="qTipo"><option value="cotizacion">Cotización</option><option value="pedido">Nota de venta</option></select></label>
+      <label>Folio<input id="qFolio" size="10"></label>
+      <button id="btnConsultar">Consultar</button>
+      <button id="btnHistorial">Ver historial de emisiones</button>
+    </div>
+  </fieldset>
+
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const pesos = (n) => '$' + Math.round(n || 0).toLocaleString('es-CL');
+const leer = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+
+$('api').value = leer('kame_api_base', 'https://kame-production-828c.up.railway.app');
+$('emitidoPor').value = leer('kame_emitido_por', '');
+try { $('clave').value = sessionStorage.getItem('kame_clave') || ''; } catch {}
+
+async function api(ruta, opciones = {}) {
+  const base = $('api').value.replace(/\/$/, '');
+  const resp = await fetch(base + ruta, {
+    ...opciones,
+    headers: { 'Content-Type': 'application/json', 'x-clave': $('clave').value, ...(opciones.headers || {}) },
+  });
+  let cuerpo = null;
+  try { cuerpo = await resp.json(); } catch {}
+  return { status: resp.status, ok: resp.ok, cuerpo };
+}
+
+function mostrar(tipo, texto, datos) {
+  $('mensaje').innerHTML = texto ? `<div class="msg ${tipo}"></div>` : '';
+  if (texto) $('mensaje').firstChild.textContent = texto;
+  $('salida').textContent = datos === undefined ? '—' : JSON.stringify(datos, null, 2);
+}
+
+// ---- Conexión: vendedores y bodegas ----
+async function conectar() {
+  guardar('kame_api_base', $('api').value);
+  guardar('kame_emitido_por', $('emitidoPor').value);
+  try { sessionStorage.setItem('kame_clave', $('clave').value); } catch {}
+  $('estadoConexion').textContent = 'Cargando vendedores desde KAME…';
+  try {
+    const r = await api('/api/documentos/opciones?refrescar=1');
+    const bodegas = r.cuerpo?.bodegas || [];
+    $('bodega').innerHTML = bodegas.map((b) => `<option>${b}</option>`).join('');
+    if (!r.ok) {
+      $('estadoConexion').textContent = 'No se pudieron cargar vendedores: ' + (r.cuerpo?.error || r.status);
+      mostrar('err', 'Error al leer vendedores de KAME', r.cuerpo);
+      return;
+    }
+    const v = r.cuerpo.vendedores;
+    $('vendedor').innerHTML = '<option value="">— elegir —</option>' +
+      v.map((n) => `<option>${n.replace(/</g, '&lt;')}</option>`).join('');
+    $('estadoConexion').textContent = `Conectado. ${v.length} vendedores en KAME.` +
+      (v.length === 0 ? ' (Ninguno reconocido: revisa "muestraVendedorKame" en el resultado.)' : '');
+    if (v.length === 0) mostrar('warn', 'KAME no devolvió vendedores reconocibles', r.cuerpo);
+  } catch (e) {
+    $('estadoConexion').textContent = 'No se pudo conectar al backend: ' + e.message;
+  }
+}
+$('btnConectar').onclick = conectar;
+
+// ---- Tipo ----
+$('tipo').onchange = () => { $('lblVigencia').style.display = $('tipo').value === 'cotizacion' ? '' : 'none'; };
+
+// ---- Buscador de clientes ----
+let tBusca;
+$('buscaCliente').oninput = () => {
+  clearTimeout(tBusca);
+  const q = $('buscaCliente').value.trim();
+  if (q.length < 2) { $('resClientes').hidden = true; return; }
+  tBusca = setTimeout(async () => {
+    const r = await api('/api/clientes/buscar?nombre=' + encodeURIComponent(q));
+    const lista = r.cuerpo?.coincidencias || [];
+    $('resClientes').innerHTML = lista.length
+      ? lista.map((c, i) => `<div data-i="${i}"></div>`).join('')
+      : '<div>Sin resultados (también puedes escribir el RUT a mano)</div>';
+    [...$('resClientes').children].forEach((el) => {
+      const c = lista[el.dataset.i];
+      if (!c) return;
+      el.textContent = `${c.nombre} — ${c.rut}`;
+      el.onclick = () => {
+        $('rut').value = c.rut; $('buscaCliente').value = c.nombre;
+        $('clienteNombre').textContent = 'Cliente: ' + c.nombre; $('resClientes').hidden = true;
+      };
+    });
+    $('resClientes').hidden = false;
+  }, 350);
+};
+document.addEventListener('click', (e) => { if (!e.target.closest('#resClientes')) $('resClientes').hidden = true; });
+
+// ---- Líneas de productos ----
+function agregarLinea() {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><input class="sku"></td><td class="desc chico"></td><td class="stock num chico"></td>
+    <td><input class="cant num" type="number" value="1" min="0" step="any"></td>
+    <td><input class="precio num" type="number" min="0" step="any"></td>
+    <td><input class="dcto num" type="number" value="0" min="0" max="100" step="any"></td>
+    <td class="tot num"></td><td><button class="quitar" title="Quitar">×</button></td>`;
+  $('lineas').appendChild(tr);
+  tr.querySelector('.sku').onchange = () => cargarProducto(tr);
+  tr.querySelectorAll('input').forEach((i) => (i.oninput = recalcular));
+  tr.querySelector('.quitar').onclick = () => { tr.remove(); recalcular(); };
+}
+$('btnLinea').onclick = agregarLinea;
+$('bodega').onchange = () => [...$('lineas').children].forEach((tr) => cargarStock(tr));
+
+async function cargarProducto(tr) {
+  const sku = tr.querySelector('.sku').value.trim();
+  tr.querySelector('.desc').textContent = sku ? 'Buscando…' : '';
+  if (!sku) return;
+  const r = await api('/api/productos/' + encodeURIComponent(sku));
+  const lista = Array.isArray(r.cuerpo) ? r.cuerpo : (r.cuerpo?.items || []);
+  const p = lista.find((x) => String(x.SKU ?? x.Sku).toLowerCase() === sku.toLowerCase()) || lista[0];
+  if (!p) { tr.querySelector('.desc').textContent = 'No existe en KAME'; return; }
+  tr.querySelector('.desc').textContent = p.Descripcion || '';
+  if (!tr.querySelector('.precio').value) tr.querySelector('.precio').value = p.PrecioVentaNeto ?? '';
+  recalcular();
+  cargarStock(tr);
+}
+
+async function cargarStock(tr) {
+  const sku = tr.querySelector('.sku').value.trim();
+  const b = $('bodega').value;
+  if (!sku || !b) return;
+  tr.querySelector('.stock').textContent = '…';
+  const r = await api(`/api/stock/articulo/${encodeURIComponent(sku)}/bodega/${encodeURIComponent(b)}`);
+  tr.querySelector('.stock').textContent = r.ok && r.cuerpo?.saldo != null ? r.cuerpo.saldo : '?';
+}
+
+function leerLineas() {
+  return [...$('lineas').children].map((tr) => ({
+    articulo: tr.querySelector('.sku').value.trim(),
+    cantidad: Number(tr.querySelector('.cant').value),
+    precioUnitario: Number(tr.querySelector('.precio').value),
+    descuentoPct: Number(tr.querySelector('.dcto').value || 0),
+  })).filter((l) => l.articulo);
+}
+
+function recalcular() {
+  let neto = 0;
+  [...$('lineas').children].forEach((tr) => {
+    const c = Number(tr.querySelector('.cant').value) || 0;
+    const p = Number(tr.querySelector('.precio').value) || 0;
+    const d = Number(tr.querySelector('.dcto').value) || 0;
+    const bruto = c * p;
+    const t = Math.round(bruto - Math.round(bruto * d / 100));
+    tr.querySelector('.tot').textContent = pesos(t);
+    neto += t;
+  });
+  const iva = Math.round(neto * 0.19);
+  $('tNeto').textContent = pesos(neto); $('tIva').textContent = pesos(iva); $('tTotal').textContent = pesos(neto + iva);
+}
+
+// ---- Emitir ----
+function cuerpoDocumento(enviar) {
+  return {
+    rut: $('rut').value.trim(),
+    vendedor: $('vendedor').value,
+    bodega: $('bodega').value,
+    formaPago: $('formaPago').value,
+    diasVigencia: Number($('diasVigencia').value || 15),
+    comentario: $('comentario').value,
+    emitidoPor: $('emitidoPor').value || 'prueba',
+    items: leerLineas(),
+    enviar,
+  };
+}
+
+async function enviarDocumento(enviar) {
+  $('btnVista').disabled = $('btnEmitir').disabled = true;
+  mostrar('warn', enviar ? 'Enviando a KAME y verificando… (puede tardar ~10 segundos)' : 'Armando vista previa…');
+  try {
+    const r = await api('/api/documentos/' + $('tipo').value, { method: 'POST', body: JSON.stringify(cuerpoDocumento(enviar)) });
+    const c = r.cuerpo || {};
+    if (!r.ok) mostrar('err', c.error || ('Error ' + r.status), c);
+    else if (c.vistaPrevia) mostrar('ok', `Vista previa de ${c.tipo}: total ${pesos(c.payload.total)}. No se envió nada a KAME.`, c.payload);
+    else if (c.estado === 'confirmado') {
+      mostrar('ok', c.mensaje, c);
+      $('qTipo').value = $('tipo').value; $('qFolio').value = c.folio;
+      $('confirmo').checked = false;
+    } else mostrar('warn', c.mensaje || 'Respuesta sin confirmar', c);
+  } catch (e) {
+    mostrar('err', 'No se pudo contactar al backend: ' + e.message);
+  } finally {
+    $('btnVista').disabled = false;
+    $('btnEmitir').disabled = !$('confirmo').checked;
+  }
+}
+$('btnVista').onclick = () => enviarDocumento(false);
+$('btnEmitir').onclick = () => enviarDocumento(true);
+$('confirmo').onchange = () => { $('btnEmitir').disabled = !$('confirmo').checked; };
+
+// ---- Consultas ----
+$('btnConsultar').onclick = async () => {
+  const f = $('qFolio').value.trim();
+  if (!f) return;
+  mostrar('warn', 'Consultando KAME…');
+  const r = await api(`/api/documentos/${$('qTipo').value}/${encodeURIComponent(f)}`);
+  mostrar(r.ok ? 'ok' : 'err', r.ok ? `Encontrado en KAME (ruta ${r.cuerpo.ruta})` : 'No encontrado en KAME', r.cuerpo);
+};
+$('btnHistorial').onclick = async () => {
+  const r = await api('/api/documentos/historial');
+  mostrar(r.ok ? 'ok' : 'err', r.ok ? `${r.cuerpo.items.length} emisiones registradas` : (r.cuerpo?.error || 'Error'), r.cuerpo);
+};
+
+agregarLinea();
+$('bodega').innerHTML = ['Antofagasta', 'Renca', 'Concepcion'].map((b) => `<option>${b}</option>`).join('');
+if ($('clave').value) conectar();
+</script>
+</body>
+</html>

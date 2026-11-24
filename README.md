@@ -19,6 +19,10 @@ todo con validaciones y registro de auditoría propio.
 - `PUT /api/productos/:sku` — body: `{ "usuario": "...", "cambios": { "nombre"?, "precioLista"?, "stockMin"?, "stockMax"? } }`
 - `GET /api/productos/:sku/auditoria` — historial de cambios
 - `GET /api/movimientos?sku=&bodega=&desde=&hasta=` — kardex desde getInformeInventario, con saldo calculado desde el stock actual
+- `GET /api/documentos/opciones` — vendedores (desde KAME) y bodegas
+- `POST /api/documentos/cotizacion` y `POST /api/documentos/pedido` — header `x-clave: CLAVE_ADMIN`; body `{ rut, vendedor, bodega, formaPago, items:[{articulo, cantidad, precioUnitario, descuentoPct}], comentario, enviar }`. Con `enviar:false` solo devuelve la vista previa. Con `enviar:true` crea el documento en KAME y lo vuelve a leer para confirmarlo. No se emiten facturas ni boletas.
+- `GET /api/documentos/:tipo/:folio` — lee una cotización o nota de venta de KAME
+- `GET /api/documentos/historial` — header `x-clave`; últimos 50 documentos emitidos desde el dashboard
 
 ## Cómo desplegarlo en la nube (Railway — sin conocimientos técnicos)
 
