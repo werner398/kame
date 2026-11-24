@@ -38,14 +38,18 @@ function resumir(datos) {
 }
 
 router.get("/kardex", async (req, res) => {
+  // ?caso=<nombre> corre solo ese caso (algunos tardan mucho).
+  const lista = req.query.caso ? CASOS.filter(([n]) => n === req.query.caso) : CASOS;
   const out = {};
-  for (const [nombre, ruta] of CASOS) {
+  await Promise.all(lista.map(async ([nombre, ruta]) => {
+    const t0 = Date.now();
     try {
-      out[nombre] = resumir(await llamarKame(ruta));
+      out[nombre] = { ms: 0, ...resumir(await llamarKame(ruta)) };
     } catch (e) {
       out[nombre] = { status: e.status, err: String(JSON.stringify(e.detalle) || e.message).slice(0, 300) };
     }
-  }
+    out[nombre].ms = Date.now() - t0;
+  }));
   res.json(out);
 });
 
