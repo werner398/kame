@@ -836,8 +836,7 @@ async function cargarCotizacion(folio) {
   if (FORMAS.some((f) => f.codigo === fp)) { doc.pagos = pagoPorDefecto(fp); pintarResumenPago(); }
   const detalle = d.Detalle ?? d.detalle ?? d.Items ?? d.items ?? [];
   doc.lineas = detalle.map((l) => ({
-    sku: String(l.Articulo ?? l.SKU ?? l.Sku ?? l.articulo ?? ''),
-    nombre: l.Descripcion ?? l.descripcion ?? String(l.Articulo ?? ''),
+    ...separarArticulo(l.Articulo ?? l.SKU ?? l.Sku ?? l.articulo, l.Descripcion ?? l.descripcion),
     cantidad: Number(l.Cantidad ?? l.cantidad ?? 1),
     precio: Number(l.PrecioUnitario ?? l.Precio ?? l.precioUnitario ?? 0),
     dcto: Number(l.PorcDescuento ?? l.porcDescuento ?? 0),
@@ -1054,6 +1053,13 @@ $('btnHistorial').onclick = async () => {
   });
 };
 
+// KAME devuelve el artículo de un documento como "CODIGO - DESCRIPCION"
+function separarArticulo(texto, descripcion) {
+  const t = String(texto ?? '').trim();
+  const m = t.match(/^(\S+)\s+-\s+(.+)$/);
+  return m ? { sku: m[1], nombre: descripcion || m[2] } : { sku: t, nombre: descripcion || t };
+}
+
 // ---------- Ver un documento emitido (leído desde KAME) ----------
 let docViendo = null;
 const fechaCL = (t) => { const m = String(t || '').match(/(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : (t || ''); };
@@ -1074,7 +1080,7 @@ function normalizarDocumento(r) {
     formaPago: forma === '2' ? 'Crédito' : forma === '1' ? 'Contado' : forma,
     cuotas: v(k.Cuotas, e.Cuotas) || [],
     lineas: detalle.map((l) => ({
-      sku: v(l.Articulo, l.SKU, l.Sku, l.articulo) ?? '', nombre: v(l.Descripcion, l.descripcion, l.Articulo) ?? '',
+      ...separarArticulo(v(l.Articulo, l.SKU, l.Sku, l.articulo), v(l.Descripcion, l.descripcion)),
       cantidad: Number(v(l.Cantidad, l.cantidad) ?? 0), unidad: v(l.UnidadMedida, l.UM) ?? 'UN',
       precio: Number(v(l.PrecioUnitario, l.Precio) ?? 0), dcto: Number(v(l.PorcDescuento, l.porcDescuento) ?? 0),
       total: Number(v(l.Total, l.total) ?? 0),

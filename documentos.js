@@ -89,11 +89,24 @@ async function fichaCliente(rut) {
   return normalizarFicha(lista(r)[0]);
 }
 
-async function buscarArticulo(sku) {
-  const r = await llamarKame(`/Maestro/getListArticulo?Sku=${encodeURIComponent(sku)}`);
-  const filas = lista(r);
+// Al leer documentos, KAME devuelve el artículo como "CODIGO - DESCRIPCION"
+// (ej. "750092R - BARRA-DUROCROMADA-20R"); aquí se separa el código.
+function codigoArticulo(texto) {
+  const t = String(texto ?? "").trim();
+  const m = t.match(/^(\S+)\s+-\s+.+$/);
+  return m ? m[1] : t;
+}
+
+async function buscarArticulo(skuOTexto) {
   const norm = (s) => String(s ?? "").trim().toLowerCase();
-  return filas.find((a) => norm(a.SKU ?? a.Sku) === norm(sku)) || filas[0] || null;
+  const consultar = async (sku) => {
+    const filas = lista(await llamarKame(`/Maestro/getListArticulo?Sku=${encodeURIComponent(sku)}`));
+    return filas.find((a) => norm(a.SKU ?? a.Sku) === norm(sku)) || null;
+  };
+  const directo = await consultar(String(skuOTexto).trim());
+  if (directo) return directo;
+  const codigo = codigoArticulo(skuOTexto);
+  return codigo !== String(skuOTexto).trim() ? consultar(codigo) : null;
 }
 
 const resolvers = { listarVendedores, fichaCliente, buscarArticulo };
