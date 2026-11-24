@@ -109,9 +109,10 @@ async function construirBase(input, resolvers, tipo) {
   if (!documento) throw new VentaPayloadError("Falta el tipo de documento", "documento");
   if (!rut) throw new VentaPayloadError("Falta el RUT del cliente", "rut");
   if (!bodega) throw new VentaPayloadError("Falta la bodega", "bodega");
-  if (!["1", "2"].includes(String(formaPago))) {
-    throw new VentaPayloadError('Forma de pago debe ser "1" (contado) o "2" (crédito)', "formaPago");
-  }
+  if (!String(formaPago).trim()) throw new VentaPayloadError("Falta la forma de pago", "formaPago");
+  // Crédito: el navegador lo indica según la forma elegida; si no, se
+  // asume crédito solo para el código "2" (el que muestra la doc de KAME).
+  const esCredito = input.esCredito != null ? Boolean(input.esCredito) : String(formaPago) === "2";
   if (!Array.isArray(items) || items.length === 0) {
     throw new VentaPayloadError("El documento no tiene productos", "items");
   }
@@ -152,7 +153,20 @@ async function construirBase(input, resolvers, tipo) {
   }
 
   const totales = calcularTotales(detalle);
-  const cuotasKame = String(formaPago) === "2" ? construirCuotas(cuotas, totales.total) : null;
+  // Crédito sin cuotas explícitas: una sola cuota por el total al plazo indicado
+  let cuotasKame = null;
+  if (esCredito) {
+    const lista =
+      Array.isArray(cuotas) && cuotas.length
+        ? cuotas
+        : [{ fechaPago: sumarDias(fecha, Number(input.diasCredito) > 0 ? Number(input.diasCredito) : 30), montoPago: totales.total }];
+    cuotasKame = construirCuotas(lista, totales.total);
+  }
+
+  // Nota de venta basada en una cotización: queda la referencia en el comentario
+  const comentarioFinal = input.cotizacionOrigen
+    ? `Según cotización N° ${input.cotizacionOrigen}${comentario ? ". " + comentario : ""}`
+    : comentario;
 
   return {
     Usuario: usuario,
@@ -169,7 +183,7 @@ async function construirBase(input, resolvers, tipo) {
     Telefono: ficha.Telefono || "",
     Email: ficha.Email || "",
     Fecha: `${fecha}T00:00:00`,
-    Comentario: comentario,
+    Comentario: comentarioFinal,
     FormaPago: String(formaPago),
     ...totales,
     Bodega: bodega,

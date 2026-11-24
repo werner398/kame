@@ -4,43 +4,101 @@ const db = require("./db");
 
 const router = express.Router();
 
-// Cache simple en memoria de la lista de clientes (rut + nombre), armada
-// a partir de getCuentaxCobrar — KAME no tiene un endpoint de búsqueda
-// de clientes por nombre, así que reusamos esta data que ya trae ambos.
-// Solo encuentra clientes con al menos un documento en los últimos 2 años.
+// Lista de clientes (rut + nombre) para el buscador. KAME no tiene un
+// endpoint de búsqueda por nombre, así que juntamos tres fuentes y
+// filtramos localmente:
+//   1. Fichas de clientes (getListFicha paginado, sin rut) — la más completa,
+//      si KAME la entrega así.
+//   2. Ventas de los últimos 6 meses (getInformeVentas, bloques de 31 días).
+//   3. Cuentas por cobrar de los últimos 2 años (getCuentaxCobrar).
+// Una fuente que falle no bloquea a las demás. Cache de 10 minutos.
 //
-// OJO: en KAME el "Código Cliente" es literalmente el mismo RUT (la ficha
-// de cliente no trae un código separado) — así que esta búsqueda cubre
-// nombre, código y RUT a la vez, comparando contra ambos campos.
-let cacheClientes = { lista: null, actualizadoEn: null };
+// OJO: en KAME el "Código Cliente" es el mismo RUT, así que la búsqueda
+// cubre nombre, código y RUT a la vez.
+let cacheClientes = { lista: null, actualizadoEn: null, fuentes: null };
+
+const filasDe = (r) => (Array.isArray(r) ? r : r?.items ?? r?.data ?? []);
+const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
+
+async function clientesDesdeFichas() {
+  const todos = [];
+  let primerRutAnterior = null;
+  for (let pagina = 1; pagina <= 40; pagina++) {
+    const filas = filasDe(await llamarKame(`/Maestro/getListFicha?page=${pagina}&per_page=500`));
+    if (!filas.length) break;
+    // Si KAME ignora la paginación y repite la misma página, cortamos
+    const primerRut = filas[0]?.Rut ?? filas[0]?.rut;
+    if (pagina > 1 && primerRut === primerRutAnterior) break;
+    primerRutAnterior = primerRut;
+    todos.push(...filas);
+    if (filas.length < 500) break;
+  }
+  return todos;
+}
+
+async function clientesDesdeVentas() {
+  const filas = [];
+  const hoy = Date.now();
+  for (let i = 0; i < 6; i++) {
+    const hasta = iso(hoy - i * 31 * 86400000);
+    const desde = iso(hoy - (i + 1) * 31 * 86400000 + 86400000);
+    filas.push(...filasDe(await llamarKame(`/Documento/getInformeVentas?page=1&per_page=1000&fechaDesde=${desde}&fechaHasta=${hasta}`)));
+  }
+  return filas;
+}
+
+async function clientesDesdeCobranza() {
+  const ahora = Date.now();
+  return filasDe(
+    await llamarKame(
+      `/Contabilidad/getCuentaxCobrar?page=1&per_page=1000&fechaVencimientoDesde=${iso(ahora - 730 * 86400000)}&fechaVencimientoHasta=${iso(ahora + 365 * 86400000)}`
+    )
+  );
+}
 
 async function obtenerListaClientes() {
   const ahora = Date.now();
-  // Se refresca cada 10 minutos, para no golpear la cuota de KAME
-  // cada vez que alguien busca por nombre.
   if (cacheClientes.lista && ahora - cacheClientes.actualizadoEn < 10 * 60 * 1000) {
     return cacheClientes.lista;
   }
 
-  const hasta = new Date().toISOString().slice(0, 10);
-  const desde = new Date(ahora - 730 * 86400000).toISOString().slice(0, 10);
-
-  const datos = await llamarKame(
-    `/Contabilidad/getCuentaxCobrar?page=1&per_page=1000&fechaVencimientoDesde=${desde}&fechaVencimientoHasta=${hasta}`
-  );
-  const filas = datos?.items ?? datos?.data ?? [];
-
   const vistos = new Map();
-  for (const f of filas) {
-    const rut = f.Rut;
-    const nombre = f.RznSocial;
-    if (rut && nombre && !vistos.has(rut)) vistos.set(rut, nombre);
+  const fuentes = {};
+  for (const [nombre, fn] of [
+    ["fichas", clientesDesdeFichas],
+    ["ventas", clientesDesdeVentas],
+    ["cobranza", clientesDesdeCobranza],
+  ]) {
+    try {
+      const filas = await fn();
+      let n = 0;
+      for (const f of filas) {
+        const rut = f.Rut ?? f.rut;
+        const razon = f.RznSocial ?? f.RazonSocial ?? f.Nombre ?? f.rznSocial;
+        if (rut && razon && !vistos.has(rut)) { vistos.set(rut, razon); n++; }
+      }
+      fuentes[nombre] = { filas: filas.length, clientesNuevos: n };
+    } catch (error) {
+      fuentes[nombre] = { error: error.message };
+    }
   }
 
   cacheClientes.lista = Array.from(vistos, ([rut, nombre]) => ({ rut, nombre }));
   cacheClientes.actualizadoEn = ahora;
+  cacheClientes.fuentes = fuentes;
   return cacheClientes.lista;
 }
+
+// GET /api/clientes/fuentes — diagnóstico: cuántos clientes aporta cada fuente
+router.get("/fuentes", async (req, res) => {
+  if (req.query.refrescar === "1") cacheClientes.actualizadoEn = 0;
+  try {
+    const lista = await obtenerListaClientes();
+    res.json({ total: lista.length, fuentes: cacheClientes.fuentes, actualizadoEn: new Date(cacheClientes.actualizadoEn).toISOString() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // GET /api/clientes/buscar?nombre=angelica  (o un RUT/código parcial, ej: 10264643)
 // OJO: esta ruta va ANTES de "/:rut" para que Express no la confunda

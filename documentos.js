@@ -95,6 +95,55 @@ async function buscarArticulo(sku) {
 
 const resolvers = { listarVendedores, fichaCliente, buscarArticulo };
 
+// ---------- Formas de pago ----------
+// La colección Postman solo muestra FormaPago "1" (contado) y "2" (crédito,
+// exige cuotas). Probamos los endpoints probables del maestro por si KAME
+// entrega la lista configurada en la cuenta; si ninguno responde, quedan esas dos.
+const FORMAS_PAGO_BASE = [
+  { codigo: "1", nombre: "Contado", credito: false, dias: 0 },
+  { codigo: "2", nombre: "Crédito", credito: true, dias: 30 },
+];
+const RUTAS_FORMAS_PAGO = [
+  "/Maestro/getListFormaPago",
+  "/Maestro/getFormaPago",
+  "/Maestro/getListCondicionPago",
+  "/Maestro/getListCondicionVenta",
+  "/Maestro/getListFormasPago",
+];
+let cacheFormasPago = { datos: null, en: 0 };
+
+async function listarFormasPago({ forzar = false } = {}) {
+  if (!forzar && cacheFormasPago.datos && Date.now() - cacheFormasPago.en < 30 * 60 * 1000) {
+    return cacheFormasPago.datos;
+  }
+  const intentos = [];
+  let formas = null;
+  let origen = null;
+  for (const ruta of RUTAS_FORMAS_PAGO) {
+    try {
+      const crudo = await llamarKame(ruta);
+      const filas = lista(crudo);
+      intentos.push({ ruta, ok: true, filas: filas.length, muestra: JSON.stringify(filas[0] ?? crudo)?.slice(0, 400) });
+      const leidas = filas
+        .map((f) => {
+          const codigo = f.Codigo ?? f.codigo ?? f.Id ?? f.id ?? f.FormaPago ?? f.CodFormaPago ?? f.CodigoFormaPago;
+          const nombre = f.Descripcion ?? f.descripcion ?? f.Nombre ?? f.nombre ?? f.Glosa ?? f.FormaPago;
+          const dias = Number(f.Dias ?? f.dias ?? f.Plazo ?? f.DiasVencimiento ?? f.DiasPlazo ?? 0) || 0;
+          return codigo != null && nombre ? { codigo: String(codigo), nombre: String(nombre), dias, credito: dias > 0 } : null;
+        })
+        .filter(Boolean);
+      if (leidas.length) { formas = leidas; origen = ruta; break; }
+    } catch (e) {
+      intentos.push({ ruta, ok: false, status: e.status });
+    }
+  }
+  cacheFormasPago = {
+    datos: { formas: formas || FORMAS_PAGO_BASE, desdeKame: !!formas, origen, intentos },
+    en: Date.now(),
+  };
+  return cacheFormasPago.datos;
+}
+
 // ---------- Folio y verificación ----------
 
 // KAME no documenta la forma exacta de la respuesta de addCotizacion /
@@ -183,6 +232,15 @@ router.get("/opciones", async (req, res) => {
     });
   } catch (error) {
     res.status(502).json({ error: error.message, detalle: error.detalle, bodegas: BODEGAS });
+  }
+});
+
+// GET /api/documentos/formas-pago — lista para el desplegable (y diagnóstico)
+router.get("/formas-pago", async (req, res) => {
+  try {
+    res.json(await listarFormasPago({ forzar: req.query.refrescar === "1" }));
+  } catch (error) {
+    res.json({ formas: FORMAS_PAGO_BASE, desdeKame: false, error: error.message });
   }
 });
 

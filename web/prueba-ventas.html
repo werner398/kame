@@ -34,7 +34,7 @@
   .resultados { position:absolute; background:#fff; border:1px solid var(--borde); max-height:220px;
                 overflow:auto; z-index:5; min-width:320px; }
   .resultados div { padding:4px 8px; cursor:pointer; }
-  .resultados div:hover { background:#d6e4f5; }
+  .resultados div:hover, .resultados div.activo { background:#d6e4f5; }
   .msg { padding:8px 10px; border-left:4px solid; margin-bottom:8px; background:#f8f8f8; }
   .msg.ok { border-color:var(--ok); } .msg.warn { border-color:var(--warn); } .msg.err { border-color:var(--err); }
   pre { background:#1e1e1e; color:#ddd; padding:10px; overflow:auto; max-height:380px; font-size:11px; margin:0; }
@@ -95,10 +95,16 @@
       </label>
       <label>RUT<input id="rut" size="14"></label>
       <label>Bodega<select id="bodega"></select></label>
-      <label>Pago
-        <select id="formaPago"><option value="1">Contado</option></select>
+      <label>Forma de pago
+        <select id="formaPago"><option value="1" data-credito="0">Contado</option></select>
       </label>
+      <label id="lblPlazo" hidden>Plazo (días)<input id="diasCredito" type="number" value="30" min="1" style="width:70px"></label>
       <label id="lblVigencia">Vigencia (días)<input id="diasVigencia" type="number" value="15" min="1" style="width:70px"></label>
+    </div>
+    <div id="filaDesdeCot" class="fila" style="margin-top:8px" hidden>
+      <label>Desde cotización N°<input id="cotOrigen" size="10"></label>
+      <button id="btnCargarCot">Cargar cotización</button>
+      <span id="estadoCot" class="chico"></span>
     </div>
     <div id="clienteNombre" class="chico" style="margin-top:6px"></div>
   </fieldset>
@@ -300,33 +306,115 @@ $('btnVendedores').onclick = () => {
   if (abrir) cargarPanelVendedores();
 };
 
-$('tipo').onchange = () => { $('lblVigencia').style.display = $('tipo').value === 'cotizacion' ? '' : 'none'; };
+$('tipo').onchange = () => {
+  const esCot = $('tipo').value === 'cotizacion';
+  $('lblVigencia').style.display = esCot ? '' : 'none';
+  $('filaDesdeCot').hidden = esCot;
+  if (esCot) { cotizacionOrigen = null; $('estadoCot').textContent = ''; }
+};
+let cotizacionOrigen = null;
 
-// ---- Buscador de clientes ----
-let tBusca;
+// ---- Buscador de clientes (desplegable mientras escribes) ----
+let tBusca, opcionesCliente = [], activo = -1;
+function elegirCliente(c) {
+  $('rut').value = c.rut; $('buscaCliente').value = c.nombre;
+  $('clienteNombre').textContent = `Cliente: ${c.nombre} — RUT ${c.rut}`;
+  $('resClientes').hidden = true;
+}
+function marcarActivo() {
+  [...$('resClientes').children].forEach((el, i) => el.classList.toggle('activo', i === activo));
+  const el = $('resClientes').children[activo];
+  if (el) el.scrollIntoView({ block: 'nearest' });
+}
 $('buscaCliente').oninput = () => {
   clearTimeout(tBusca);
   const q = $('buscaCliente').value.trim();
   if (q.length < 2) { $('resClientes').hidden = true; return; }
   tBusca = setTimeout(async () => {
+    $('resClientes').innerHTML = '<div>Buscando…</div>'; $('resClientes').hidden = false;
     const r = await api('/api/clientes/buscar?nombre=' + encodeURIComponent(q));
-    const lista = r.cuerpo?.coincidencias || [];
-    $('resClientes').innerHTML = lista.length
-      ? lista.map((c, i) => `<div data-i="${i}"></div>`).join('')
-      : '<div>Sin resultados (también puedes escribir el RUT a mano)</div>';
-    [...$('resClientes').children].forEach((el) => {
-      const c = lista[el.dataset.i];
-      if (!c) return;
+    if ($('buscaCliente').value.trim() !== q) return; // llegó tarde, ya escribió otra cosa
+    opcionesCliente = r.cuerpo?.coincidencias || []; activo = -1;
+    $('resClientes').innerHTML = '';
+    if (!opcionesCliente.length) {
+      $('resClientes').innerHTML = '<div>Sin resultados. También puedes escribir el RUT a mano.</div>';
+      return;
+    }
+    opcionesCliente.forEach((c) => {
+      const el = document.createElement('div');
       el.textContent = `${c.nombre} — ${c.rut}`;
-      el.onclick = () => {
-        $('rut').value = c.rut; $('buscaCliente').value = c.nombre;
-        $('clienteNombre').textContent = 'Cliente: ' + c.nombre; $('resClientes').hidden = true;
-      };
+      el.onmousedown = (e) => { e.preventDefault(); elegirCliente(c); };
+      $('resClientes').appendChild(el);
     });
-    $('resClientes').hidden = false;
-  }, 350);
+  }, 300);
 };
-document.addEventListener('click', (e) => { if (!e.target.closest('#resClientes')) $('resClientes').hidden = true; });
+$('buscaCliente').onkeydown = (e) => {
+  if ($('resClientes').hidden || !opcionesCliente.length) return;
+  if (e.key === 'ArrowDown') { activo = Math.min(activo + 1, opcionesCliente.length - 1); marcarActivo(); e.preventDefault(); }
+  else if (e.key === 'ArrowUp') { activo = Math.max(activo - 1, 0); marcarActivo(); e.preventDefault(); }
+  else if (e.key === 'Enter') { elegirCliente(opcionesCliente[Math.max(activo, 0)]); e.preventDefault(); }
+  else if (e.key === 'Escape') { $('resClientes').hidden = true; }
+};
+$('buscaCliente').onblur = () => setTimeout(() => ($('resClientes').hidden = true), 150);
+$('rut').onchange = () => { $('clienteNombre').textContent = ''; };
+
+// ---- Formas de pago desde KAME ----
+async function cargarFormasPago() {
+  const r = await api('/api/documentos/formas-pago');
+  const formas = r.cuerpo?.formas || [{ codigo: '1', nombre: 'Contado', credito: false, dias: 0 }, { codigo: '2', nombre: 'Crédito', credito: true, dias: 30 }];
+  $('formaPago').innerHTML = '';
+  formas.forEach((f) => {
+    const o = document.createElement('option');
+    o.value = f.codigo; o.textContent = f.nombre;
+    o.dataset.credito = f.credito ? '1' : '0'; o.dataset.dias = f.dias || 30;
+    $('formaPago').appendChild(o);
+  });
+  actualizarPlazo();
+}
+function formaSeleccionada() { return $('formaPago').selectedOptions[0]; }
+function actualizarPlazo() {
+  const o = formaSeleccionada();
+  const credito = o?.dataset.credito === '1';
+  $('lblPlazo').hidden = !credito;
+  if (credito) $('diasCredito').value = o.dataset.dias || 30;
+}
+$('formaPago').onchange = actualizarPlazo;
+
+// ---- Cargar una cotización en la nota de venta ----
+$('btnCargarCot').onclick = async () => {
+  const folio = $('cotOrigen').value.trim();
+  if (!folio) return;
+  $('estadoCot').textContent = 'Buscando en KAME…';
+  const r = await api(`/api/documentos/cotizacion/${encodeURIComponent(folio)}`);
+  const d = r.cuerpo?.doc;
+  if (!r.ok || !d) { $('estadoCot').textContent = `No se encontró la cotización N° ${folio} en KAME.`; mostrar('err', 'Cotización no encontrada', r.cuerpo); return; }
+
+  const rut = d.Rut ?? d.rut ?? '';
+  const razon = d.RznSocial ?? d.RazonSocial ?? d.rznSocial ?? '';
+  $('rut').value = rut; $('buscaCliente').value = razon;
+  $('clienteNombre').textContent = razon ? `Cliente: ${razon} — RUT ${rut}` : '';
+  const bodega = d.Bodega ?? d.bodega;
+  if (bodega && [...$('bodega').options].some((o) => o.value === bodega)) $('bodega').value = bodega;
+  const fp = d.FormaPago ?? d.formaPago;
+  if (fp != null && [...$('formaPago').options].some((o) => o.value === String(fp))) { $('formaPago').value = String(fp); actualizarPlazo(); }
+
+  const detalle = d.Detalle ?? d.detalle ?? d.Items ?? d.items ?? [];
+  $('lineas').innerHTML = '';
+  detalle.forEach((l) => {
+    agregarLinea();
+    const tr = $('lineas').lastElementChild;
+    tr.querySelector('.sku').value = l.Articulo ?? l.SKU ?? l.Sku ?? l.articulo ?? '';
+    tr.querySelector('.cant').value = l.Cantidad ?? l.cantidad ?? 1;
+    tr.querySelector('.precio').value = l.PrecioUnitario ?? l.Precio ?? l.precioUnitario ?? '';
+    tr.querySelector('.dcto').value = l.PorcDescuento ?? l.porcDescuento ?? 0;
+    cargarProducto(tr);
+  });
+  if (!detalle.length) agregarLinea();
+  recalcular();
+  cotizacionOrigen = folio;
+  $('estadoCot').textContent = `Cargada la cotización N° ${folio}` + (detalle.length ? ` (${detalle.length} productos).` : ', pero KAME no trajo el detalle de productos.');
+  mostrar('ok', `Cotización N° ${folio} cargada. Revisa y emite la nota de venta.`, d);
+};
 
 // ---- Líneas de productos ----
 function agregarLinea() {
@@ -398,6 +486,9 @@ function cuerpoDocumento(enviar) {
     vendedor: sesion?.vendedor || '',
     bodega: $('bodega').value,
     formaPago: $('formaPago').value,
+    esCredito: formaSeleccionada()?.dataset.credito === '1',
+    diasCredito: Number($('diasCredito').value || 30),
+    cotizacionOrigen: $('tipo').value === 'pedido' ? cotizacionOrigen : null,
     diasVigencia: Number($('diasVigencia').value || 15),
     comentario: $('comentario').value,
     emitidoPor: sesion?.vendedor || '',
@@ -447,6 +538,8 @@ agregarLinea();
 $('bodega').innerHTML = ['Antofagasta', 'Renca', 'Concepcion'].map((b) => `<option>${b}</option>`).join('');
 pintarSesion();
 cargarVendedores(false);
+cargarFormasPago();
+$('tipo').onchange();
 // Retomar sesión guardada si sigue vigente
 if (sesion?.rol === 'vendedor') api('/api/vendedores/sesion').then((r) => { if (!r.ok) { sesion = null; guardarSesion(); pintarSesion(); } });
 </script>

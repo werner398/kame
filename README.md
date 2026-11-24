@@ -24,6 +24,8 @@ todo con validaciones y registro de auditoría propio.
 - `POST /api/vendedores/entrar` — body `{ vendedor, clave }` → sesión de 12 h (`Authorization: Bearer <token>`)
 - `PUT /api/vendedores/clave` / `DELETE /api/vendedores/clave` — header `x-clave: CLAVE_ADMIN`; asigna o quita la clave de un vendedor
 - `POST /api/documentos/cotizacion` y `POST /api/documentos/pedido` — con sesión de vendedor (emite solo a su nombre) o header `x-clave: CLAVE_ADMIN`; body `{ rut, vendedor, bodega, formaPago, items:[{articulo, cantidad, precioUnitario, descuentoPct}], comentario, enviar }`. Con `enviar:false` solo devuelve la vista previa. Con `enviar:true` crea el documento en KAME y lo vuelve a leer para confirmarlo. No se emiten facturas ni boletas.
+- `GET /api/documentos/formas-pago` — formas de pago (desde KAME si algún endpoint del maestro las entrega; si no, Contado/Crédito)
+- `GET /api/clientes/fuentes` — diagnóstico del buscador: cuántos clientes aporta cada fuente (fichas, ventas, cobranza)
 - `GET /api/documentos/:tipo/:folio` — lee una cotización o nota de venta de KAME
 - `GET /api/documentos/historial` — últimos 50 documentos (el vendedor ve solo los suyos)
 
