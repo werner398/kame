@@ -20,7 +20,12 @@ app.use(express.json());
 // Chequeo simple para saber si el servidor está vivo (útil al hostear)
 const db = require("./db");
 app.get("/health", (req, res) =>
-  res.json({ ok: true, hora: new Date().toISOString(), baseDatosPersistente: db.persistente })
+  res.json({
+    ok: true,
+    hora: new Date().toISOString(),
+    baseDatosPersistente: db.persistente,
+    claveAdminConfigurada: Boolean(String(process.env.CLAVE_ADMIN || "").trim()),
+  })
 );
 
 app.use("/api/stock", stockRouter);

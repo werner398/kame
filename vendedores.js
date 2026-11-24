@@ -33,9 +33,10 @@ const hashToken = (t) => crypto.createHash("sha256").update(String(t)).digest("h
 const clave = (nombre) => String(nombre || "").trim().toLowerCase();
 
 function esAdmin(req) {
-  const esperada = process.env.CLAVE_ADMIN;
+  // Se ignoran espacios al inicio/fin (es fácil pegar uno sin querer en Railway)
+  const esperada = String(process.env.CLAVE_ADMIN || "").trim();
   if (!esperada) return false;
-  const a = crypto.createHash("sha256").update(String(req.get("x-clave") || "")).digest();
+  const a = crypto.createHash("sha256").update(String(req.get("x-clave") || "").trim()).digest();
   const b = crypto.createHash("sha256").update(esperada).digest();
   return crypto.timingSafeEqual(a, b);
 }
