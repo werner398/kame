@@ -11,6 +11,9 @@
 // un documento solo se marca "confirmado" después de volver a leerlo.
 
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
 const { llamarKame } = require("./kameClient");
 const db = require("./db");
 const { VentaPayloadError, payloadCotizacion, payloadPedido } = require("./ventaPayloadBuilder");
@@ -256,12 +259,13 @@ router.get("/formas-pago", async (req, res) => {
 
 // GET /api/documentos/historial — últimos documentos emitidos desde aquí
 router.get("/historial", exigirAcceso, (req, res) => {
-  const columnas = "id, tipo, folio, vendedor, rut, rzn_social, total, estado, emitido_por, error, fecha";
+  const columnas = `id, tipo, folio, vendedor, rut, rzn_social, total, estado, emitido_por, error, fecha,
+    (SELECT json_group_array(json_object('id', a.id, 'nombre', a.nombre)) FROM adjuntos_documento a WHERE a.documento_id = documentos_emitidos.id) AS adjuntos`;
   const filas =
     req.acceso.rol === "vendedor"
       ? db.prepare(`SELECT ${columnas} FROM documentos_emitidos WHERE vendedor = ? ORDER BY id DESC LIMIT 50`).all(req.acceso.vendedor)
       : db.prepare(`SELECT ${columnas} FROM documentos_emitidos ORDER BY id DESC LIMIT 50`).all();
-  res.json({ items: filas });
+  res.json({ items: filas.map((f) => ({ ...f, adjuntos: JSON.parse(f.adjuntos || "[]") })) });
 });
 
 // GET /api/documentos/:tipo/:folio — leer una cotización o nota de venta de KAME
@@ -353,7 +357,7 @@ router.post("/:tipo", exigirAcceso, async (req, res) => {
 
   const ver = await verificar(req.params.tipo, folio, payload.total);
   const estado = ver.confirmado ? "confirmado" : "sin_confirmar";
-  insertarRegistro.run({
+  const registro = insertarRegistro.run({
     ...base, folio, estado, respuesta: json(respuesta), verificacion: json(ver),
     error: ver.confirmado ? null : "No se pudo leer de vuelta el documento",
   });
@@ -362,6 +366,7 @@ router.post("/:tipo", exigirAcceso, async (req, res) => {
     estado,
     tipo: def.nombre,
     folio,
+    registroId: Number(registro.lastInsertRowid),
     total: payload.total,
     mensaje: ver.confirmado
       ? `${def.nombre} N° ${folio} creada y confirmada en KAME.`
@@ -369,6 +374,55 @@ router.post("/:tipo", exigirAcceso, async (req, res) => {
     verificacion: ver,
     respuestaKame: respuesta,
   });
+});
+
+// ---------- Adjuntos (ej. la OC del cliente) ----------
+// KAME no muestra en su API cómo adjuntar archivos a un documento, así que
+// el archivo se guarda en nuestro sistema, asociado al documento emitido.
+const TIPOS_ADJUNTO = {
+  "application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
+};
+const MAX_ADJUNTO = 10 * 1024 * 1024; // 10 MB
+
+function documentoPermitido(req, id) {
+  const fila = db.prepare("SELECT id, vendedor FROM documentos_emitidos WHERE id = ?").get(id);
+  if (!fila) return null;
+  if (req.acceso.rol === "vendedor" && fila.vendedor !== req.acceso.vendedor) return null;
+  return fila;
+}
+
+// POST /api/documentos/registro/:id/adjunto  { nombre, tipo, base64 }
+router.post("/registro/:id/adjunto", exigirAcceso, (req, res) => {
+  const doc = documentoPermitido(req, Number(req.params.id));
+  if (!doc) return res.status(404).json({ error: "Documento no encontrado" });
+  const { nombre, tipo, base64 } = req.body || {};
+  const extension = TIPOS_ADJUNTO[tipo];
+  if (!extension) return res.status(400).json({ error: "Solo se aceptan PDF o imágenes (JPG, PNG, WEBP)" });
+  const datos = Buffer.from(String(base64 || ""), "base64");
+  if (!datos.length) return res.status(400).json({ error: "El archivo está vacío" });
+  if (datos.length > MAX_ADJUNTO) return res.status(413).json({ error: "El archivo supera 10 MB" });
+
+  const archivo = `${doc.id}-${crypto.randomBytes(8).toString("hex")}${extension}`;
+  fs.writeFileSync(path.join(db.carpetaAdjuntos, archivo), datos);
+  const r = db
+    .prepare("INSERT INTO adjuntos_documento (documento_id, nombre, tipo_mime, tamano, archivo, subido_por) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(doc.id, String(nombre || "adjunto" + extension).slice(0, 150), tipo, datos.length, archivo,
+      req.acceso.rol === "vendedor" ? req.acceso.vendedor : "admin");
+  res.json({ ok: true, id: Number(r.lastInsertRowid), persistente: db.persistente });
+});
+
+// GET /api/documentos/registro/:id/adjunto/:adjuntoId — descarga el archivo
+router.get("/registro/:id/adjunto/:adjuntoId", exigirAcceso, (req, res) => {
+  const doc = documentoPermitido(req, Number(req.params.id));
+  if (!doc) return res.status(404).json({ error: "Documento no encontrado" });
+  const adj = db.prepare("SELECT * FROM adjuntos_documento WHERE id = ? AND documento_id = ?").get(Number(req.params.adjuntoId), doc.id);
+  const ruta = adj && path.join(db.carpetaAdjuntos, path.basename(adj.archivo));
+  if (!adj || !fs.existsSync(ruta)) {
+    return res.status(404).json({ error: "El archivo ya no existe (si no hay volumen en Railway, se pierde al redesplegar)" });
+  }
+  res.setHeader("Content-Type", adj.tipo_mime);
+  res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(adj.nombre)}"`);
+  res.sendFile(ruta);
 });
 
 module.exports = { router, listarVendedores, extraerFolio, extraerDocumento };

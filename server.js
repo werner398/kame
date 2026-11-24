@@ -15,6 +15,8 @@ const { crearRutas: rutasVendedores } = require("./vendedores");
 const app = express();
 
 app.use(cors());
+// Los adjuntos (OC en PDF o foto) llegan en base64: límite mayor solo en esa ruta
+app.use("/api/documentos/registro", express.json({ limit: "15mb" }));
 app.use(express.json());
 
 // Chequeo simple para saber si el servidor está vivo (útil al hostear)

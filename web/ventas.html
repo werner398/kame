@@ -301,6 +301,9 @@
       <h3>Datos adicionales <button class="enlace" id="btnCerrarDatos" style="color:var(--gris); font-size:20px">×</button></h3>
       <div class="linea"><label>Nro OC</label><input id="nroOC" class="campo" placeholder="Número de OC"></div>
       <div class="linea"><label>Fecha OC</label><input id="fechaOC" class="campo" type="date"></div>
+      <div class="linea"><label>Adjuntar OC</label><div>
+        <input id="archivoOC" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" class="campo" style="padding:8px">
+        <div class="chico" id="archivoOCInfo">PDF o imagen, máximo 10 MB. Se guarda junto al documento al crearlo.</div></div></div>
       <div class="linea"><label>Comentarios</label><textarea id="comentarioModal" class="campo" rows="4" placeholder="Comentarios sobre este documento…"></textarea></div>
       <div class="acciones" style="margin-top:8px">
         <button class="btn rojo" id="btnCancelarDatos">Cancelar</button>
@@ -327,7 +330,7 @@
   <section id="vistaHistorial" hidden>
     <h3 style="margin-top:0">Documentos emitidos</h3>
     <table>
-      <thead><tr><th>Fecha</th><th>Tipo</th><th>Folio</th><th>Cliente</th><th class="ocultar-movil">Vendedor</th><th class="num">Total</th><th>Estado</th></tr></thead>
+      <thead><tr><th>Fecha</th><th>Tipo</th><th>Folio</th><th>Cliente</th><th class="ocultar-movil">Vendedor</th><th class="num">Total</th><th>Estado</th><th>OC</th></tr></thead>
       <tbody id="histFilas"></tbody>
     </table>
   </section>
@@ -429,7 +432,7 @@ $('btnSalir').onclick = async () => {
 // ---------- Estado del documento ----------
 let doc;
 function docVacio() {
-  return { cliente: null, ficha: null, bodega: leer('kame_ultima_bodega', ''), tipo: 'pedido', lineas: [], cotizacionOrigen: null, nroOC: '', fechaOC: '', ejecutivo: null };
+  return { cliente: null, ficha: null, bodega: leer('kame_ultima_bodega', ''), tipo: 'pedido', lineas: [], cotizacionOrigen: null, nroOC: '', fechaOC: '', ejecutivo: null, adjunto: null };
 }
 
 function nuevoDocumento() {
@@ -765,7 +768,20 @@ function recalcular() {
 }
 
 // ---------- Datos adicionales (N° OC, fecha OC, comentarios) ----------
+const TIPOS_OC = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+let archivoElegido = null;
+$('archivoOC').onchange = () => {
+  const f = $('archivoOC').files[0];
+  archivoElegido = null;
+  if (!f) { $('archivoOCInfo').textContent = 'PDF o imagen, máximo 10 MB.'; return; }
+  if (!TIPOS_OC.includes(f.type)) { $('archivoOCInfo').textContent = 'Formato no aceptado: usa PDF, JPG, PNG o WEBP.'; $('archivoOC').value = ''; return; }
+  if (f.size > 10 * 1024 * 1024) { $('archivoOCInfo').textContent = 'El archivo supera 10 MB.'; $('archivoOC').value = ''; return; }
+  archivoElegido = f;
+  $('archivoOCInfo').textContent = `${f.name} (${Math.ceil(f.size / 1024).toLocaleString('es-CL')} KB)`;
+};
 function abrirDatos() {
+  archivoElegido = doc.adjunto; $('archivoOC').value = '';
+  $('archivoOCInfo').textContent = doc.adjunto ? `${doc.adjunto.name} (se adjuntará al crear)` : 'PDF o imagen, máximo 10 MB. Se guarda junto al documento al crearlo.';
   $('nroOC').value = doc.nroOC; $('fechaOC').value = doc.fechaOC; $('comentarioModal').value = $('comentario').value;
   $('modalDatos').hidden = false; $('nroOC').focus();
 }
@@ -773,6 +789,7 @@ function cerrarDatos() { $('modalDatos').hidden = true; }
 function pintarResumenDatos() {
   const partes = [];
   if (doc.nroOC) partes.push('OC ' + doc.nroOC + (doc.fechaOC ? ' · ' + doc.fechaOC.split('-').reverse().join('-') : ''));
+  if (doc.adjunto) partes.push('OC adjunta');
   if ($('comentario').value.trim()) partes.push('con comentario');
   $('resumenDatos').textContent = partes.join(' · ');
 }
@@ -780,7 +797,7 @@ $('btnDatos').onclick = abrirDatos;
 $('btnCerrarDatos').onclick = cerrarDatos;
 $('btnCancelarDatos').onclick = cerrarDatos;
 $('btnGuardarDatos').onclick = () => {
-  doc.nroOC = $('nroOC').value.trim(); doc.fechaOC = $('fechaOC').value;
+  doc.nroOC = $('nroOC').value.trim(); doc.fechaOC = $('fechaOC').value; doc.adjunto = archivoElegido;
   $('comentario').value = $('comentarioModal').value; pintarResumenDatos(); cerrarDatos();
 };
 $('comentario').oninput = pintarResumenDatos;
@@ -864,11 +881,31 @@ $('btnConfirmar').onclick = async () => {
     const r = await api('/api/documentos/' + doc.tipo, { method: 'POST', body: JSON.stringify(cuerpoDocumento(true)) });
     const c = r.cuerpo || {};
     if (!r.ok && r.status !== 202) { aviso('emitirMsg', 'err', c.error || 'KAME rechazó el documento'); $('btnEmitir').hidden = true; return; }
+    if (doc.adjunto && c.registroId) {
+      aviso('emitirMsg', 'warn', 'Documento creado. Subiendo la OC adjunta…');
+      c.adjuntoSubido = await subirAdjunto(c.registroId, doc.adjunto);
+    }
     mostrarResultado(c);
   } finally {
     $('btnConfirmar').disabled = false; $('btnCancelarConf').disabled = false;
   }
 };
+
+function leerBase64(archivo) {
+  return new Promise((ok, mal) => {
+    const lector = new FileReader();
+    lector.onload = () => ok(String(lector.result).split(',')[1] || '');
+    lector.onerror = () => mal(lector.error);
+    lector.readAsDataURL(archivo);
+  });
+}
+async function subirAdjunto(registroId, archivo) {
+  try {
+    const base64 = await leerBase64(archivo);
+    const r = await api(`/api/documentos/registro/${registroId}/adjunto`, { method: 'POST', body: JSON.stringify({ nombre: archivo.name, tipo: archivo.type, base64 }) });
+    return r.ok ? { ok: true } : { ok: false, error: r.cuerpo?.error || 'Error ' + r.status };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
 
 function mostrarResultado(c) {
   const esCot = doc.tipo === 'cotizacion';
@@ -876,7 +913,8 @@ function mostrarResultado(c) {
   if (c.estado === 'confirmado') {
     $('resTitulo').textContent = esCot ? 'Cotización creada en KAME' : 'Nota de venta creada en KAME';
     $('resFolio').textContent = 'N° ' + c.folio;
-    $('resTexto').textContent = `${doc.cliente.nombre} · Total ${pesos(c.total)}`;
+    $('resTexto').textContent = `${doc.cliente.nombre} · Total ${pesos(c.total)}` +
+      (c.adjuntoSubido ? (c.adjuntoSubido.ok ? ' · OC adjunta ✓' : ` · No se pudo adjuntar la OC: ${c.adjuntoSubido.error}`) : '');
   } else {
     $('resTitulo').textContent = 'KAME respondió, pero no se pudo confirmar';
     $('resFolio').textContent = c.folio ? 'N° ' + c.folio : '—';
@@ -966,18 +1004,39 @@ $('btnExcel').onclick = () => {
 // ---------- Historial ----------
 $('btnHistorial').onclick = async () => {
   mostrarVista('historial');
-  $('histFilas').innerHTML = '<tr><td colspan="7" class="chico">Cargando…</td></tr>';
+  $('histFilas').innerHTML = '<tr><td colspan="8" class="chico">Cargando…</td></tr>';
   const r = await api('/api/documentos/historial');
   const filas = r.cuerpo?.items || [];
-  $('histFilas').innerHTML = filas.length ? '' : '<tr><td colspan="7" class="chico">Aún no hay documentos emitidos desde esta ventana.</td></tr>';
+  $('histFilas').innerHTML = filas.length ? '' : '<tr><td colspan="8" class="chico">Aún no hay documentos emitidos desde esta ventana.</td></tr>';
   const estados = { confirmado: 'Confirmado', sin_confirmar: 'Revisar en ERP', rechazado: 'Rechazado', sin_folio: 'Revisar en ERP' };
   filas.forEach((f) => {
     const tr = document.createElement('tr');
     [f.fecha?.slice(0, 16), f.tipo === 'pedido' ? 'Nota de venta' : 'Cotización', f.folio || '—', f.rzn_social || f.rut, f.vendedor, pesos(f.total), estados[f.estado] || f.estado]
       .forEach((v, i) => { const td = document.createElement('td'); td.textContent = v ?? ''; if (i === 5) td.className = 'num'; if (i === 4) td.className = 'ocultar-movil'; tr.appendChild(td); });
+    const tdOC = document.createElement('td');
+    (f.adjuntos || []).forEach((a) => {
+      const b = document.createElement('button'); b.className = 'enlace'; b.textContent = 'Ver OC'; b.title = a.nombre;
+      b.onclick = () => verAdjunto(f.id, a.id);
+      tdOC.appendChild(b);
+    });
+    tr.appendChild(tdOC);
     $('histFilas').appendChild(tr);
   });
 };
+
+// Abre el adjunto en otra pestaña (se pide con la sesión, por eso no es un enlace directo)
+async function verAdjunto(registroId, adjuntoId) {
+  const ventana = window.open('', '_blank');
+  const auth = sesion?.rol === 'vendedor' ? { Authorization: 'Bearer ' + sesion.token } : { 'x-clave': sesion?.clave || '' };
+  const resp = await fetch(`${API}/api/documentos/registro/${registroId}/adjunto/${adjuntoId}`, { headers: auth });
+  if (!resp.ok) {
+    let msg = 'No se pudo abrir el archivo'; try { msg = (await resp.json()).error || msg; } catch {}
+    if (ventana) ventana.close();
+    alert(msg); return;
+  }
+  const url = URL.createObjectURL(await resp.blob());
+  if (ventana) ventana.location = url; else window.open(url, '_blank');
+}
 
 // ---------- Panel de vendedores (admin) ----------
 $('btnPanelVend').onclick = () => { $('panelVend').hidden = !$('panelVend').hidden; if (!$('panelVend').hidden) cargarPanel(); };

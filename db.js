@@ -98,6 +98,19 @@ db.exec(`
     actualizado TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  -- Archivos adjuntos a un documento emitido (ej. la OC del cliente).
+  -- El archivo vive en la carpeta "adjuntos" junto a la base; aquí solo los datos.
+  CREATE TABLE IF NOT EXISTS adjuntos_documento (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    documento_id INTEGER NOT NULL,
+    nombre TEXT NOT NULL,
+    tipo_mime TEXT NOT NULL,
+    tamano INTEGER NOT NULL,
+    archivo TEXT NOT NULL,
+    subido_por TEXT,
+    fecha TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS sesiones_vendedor (
     token_hash TEXT PRIMARY KEY,
     vendedor TEXT NOT NULL,
@@ -116,4 +129,10 @@ try {
 }
 
 db.persistente = dbPersistente;
+
+// Archivos adjuntos (ej. la OC del cliente) en una carpeta junto a la base,
+// así también quedan en el volumen de Railway.
+const fs = require("fs");
+db.carpetaAdjuntos = path.join(path.dirname(dbPath), "adjuntos");
+fs.mkdirSync(db.carpetaAdjuntos, { recursive: true });
 module.exports = db;
