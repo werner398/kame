@@ -89,6 +89,28 @@ async function obtenerListaClientes() {
   return cacheClientes.lista;
 }
 
+// La ficha de KAME trae la razón social en "RazonSocial" y la dirección y los
+// contactos dentro de listas (Direcciones[], Contactos[]). Esto la deja en un
+// formato plano, tomando la primera dirección y el primer contacto.
+function normalizarFicha(f) {
+  if (!f) return null;
+  const dir = (Array.isArray(f.Direcciones) && f.Direcciones[0]) || {};
+  const con = (Array.isArray(f.Contactos) && f.Contactos[0]) || {};
+  const primero = (...v) => v.find((x) => x != null && String(x).trim() !== "") ?? "";
+  return {
+    Rut: f.Rut ?? f.rut ?? "",
+    RznSocial: primero(f.RznSocial, f.RazonSocial, f.Nombre),
+    Giro: primero(f.Giro, f.Actividad, f.GiroComercial, dir.Giro),
+    Direccion: primero(f.Direccion, dir.Direccion, dir.Calle, dir.DireccionCompleta),
+    Comuna: primero(f.Comuna, dir.Comuna),
+    Ciudad: primero(f.Ciudad, dir.Ciudad, dir.Region),
+    Telefono: primero(f.Telefono, con.Telefono, con.Celular, dir.Telefono),
+    Email: primero(f.Email, con.Email, con.Correo, dir.Email),
+    Contacto: primero(f.Contacto, con.Nombre, con.NombreContacto),
+    CondicionVenta: primero(f.CondicionVenta, f.CondicionPago, f.FormaPago),
+  };
+}
+
 // GET /api/clientes/fuentes — diagnóstico: cuántos clientes aporta cada fuente
 router.get("/fuentes", async (req, res) => {
   if (req.query.refrescar === "1") cacheClientes.actualizadoEn = 0;
@@ -137,7 +159,8 @@ router.get("/:rut", async (req, res) => {
       )
       .all(req.params.rut);
 
-    res.json({ ficha, comentarios });
+    const filas = Array.isArray(ficha) ? ficha : ficha?.items ?? ficha?.data ?? (ficha ? [ficha] : []);
+    res.json({ ficha, fichaNormalizada: normalizarFicha(filas[0]), comentarios });
   } catch (error) {
     res.status(500).json({ error: error.message, detalle: error.detalle });
   }
@@ -159,4 +182,4 @@ router.post("/:rut/comentarios", (req, res) => {
   res.json({ ok: true, id: resultado.lastInsertRowid });
 });
 
-module.exports = { router };
+module.exports = { router, normalizarFicha };

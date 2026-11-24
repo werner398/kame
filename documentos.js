@@ -83,10 +83,10 @@ async function listarVendedores({ forzar = false } = {}) {
   return cacheVendedores.nombres;
 }
 
+const { normalizarFicha } = require("./clientes");
 async function fichaCliente(rut) {
   const r = await llamarKame(`/Maestro/getListFicha?rut=${encodeURIComponent(rut)}`);
-  const filas = lista(r);
-  return filas[0] || null;
+  return normalizarFicha(lista(r)[0]);
 }
 
 async function buscarArticulo(sku) {
@@ -161,8 +161,16 @@ async function listarFormasPago({ forzar = false } = {}) {
       intentos.push({ ruta, ok: false, status: e.status, detalle: JSON.stringify(e.detalle ?? "")?.slice(0, 200) });
     }
   }
+  // La API entrega solo las condiciones agregadas en la cuenta (ej. "Tarjeta de
+  // credito"); Contado y Crédito vienen de fábrica en KAME y no aparecen ahí,
+  // así que siempre se incluyen.
+  const nombresKame = new Set((formas || []).map((f) => f.nombre.trim().toLowerCase()));
+  const combinadas = [
+    ...FORMAS_PAGO_BASE.filter((b) => !nombresKame.has(b.nombre.toLowerCase()) && !nombresKame.has(b.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))),
+    ...(formas || []),
+  ];
   cacheFormasPago = {
-    datos: { formas: formas || FORMAS_PAGO_BASE, desdeKame: !!formas, origen, intentos },
+    datos: { formas: combinadas, desdeKame: !!formas, origen, intentos },
     en: Date.now(),
   };
   return cacheFormasPago.datos;

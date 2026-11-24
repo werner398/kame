@@ -66,13 +66,17 @@ function construirLinea(item) {
 }
 
 function calcularTotales(lineas) {
+  // Total de cada línea ya viene neto (con su descuento aplicado).
   const afecto = lineas.reduce((a, l) => a + l.Total, 0);
-  const descuento = lineas.reduce((a, l) => a + l.Descuento, 0);
   const iva = clp(afecto * IVA);
   return {
     Afecto: afecto,
     Exento: 0,
-    Descuento: descuento,
+    // En KAME el Descuento del encabezado es un descuento GLOBAL adicional
+    // (lo resta del afecto del detalle y recalcula el IVA). Si mandáramos la
+    // suma de descuentos por línea, se descontaría dos veces y KAME rechaza
+    // por "Cuadratura" (confirmado en la primera prueba real, 24-11-2026).
+    Descuento: 0,
     TipoImpto1: "IVA",
     ValorImpto1: iva,
     total: afecto + iva,
@@ -217,7 +221,7 @@ async function construirBase(input, resolvers, tipo) {
     Rut: ficha.Rut || rut,
     TipoDocumento: tipo,
     Folio: folio,
-    RznSocial: ficha.RznSocial || ficha.RazonSocial || "",
+    RznSocial: ficha.RznSocial || "",
     Giro: ficha.Giro || "",
     Direccion: ficha.Direccion || "",
     Ciudad: ficha.Ciudad || "",
